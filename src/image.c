@@ -236,6 +236,20 @@ image **load_alphabet()
     return alphabets;
 }
 
+float get_average_color(image im, int left, int right, int top, int bot, int c, float ratio) {
+  float result = 0.0;
+  left = left + (right - left) * ratio;
+  right = right - (right-left) * ratio;
+  top = top + (bot - top) * ratio;
+  bot = bot - (bot - top) * ratio;
+  for(int j = left; j < right; ++j){
+      for(int i = top; i < bot; ++i){
+          result += get_pixel(im, j , i, c);
+      }
+  }
+  return 255.0 * result/((right-left)*(bot-top));
+}
+
 void draw_detections(image im, detection *dets, int num, float thresh, char **names, image **alphabet, int classes)
 {
     int i,j;
@@ -298,8 +312,12 @@ void draw_detections(image im, detection *dets, int num, float thresh, char **na
               int head_bot = top + (bot - top)/8;
               int half_bot = top + (bot - top)/2;
 
-              char head[] = "head";
+              char head[64];
               draw_box_width(im, left, top, right, head_bot, width, red, green, blue);
+              int head_r = get_average_color(im, left, right, top, head_bot, 0, 0.3);
+              int head_g = get_average_color(im, left, right, top, head_bot, 1, 0.3);
+              int head_b = get_average_color(im, left, right, top, head_bot, 2, 0.3);
+              snprintf(head, sizeof(head), "head. r:%d, g:%d, b:%d", head_r, head_g, head_b);
 
               if (alphabet) {
                   image label = get_label(alphabet, head, (im.h*.03));
@@ -316,8 +334,12 @@ void draw_detections(image im, detection *dets, int num, float thresh, char **na
                   free_image(tmask);
               }
 
-              char upper_body[] = "upper body";
+              char upper_body[64];
               draw_box_width(im, left, head_bot, right, half_bot, width, red, green, blue);
+              int upper_body_r = get_average_color(im, left, right, head_bot, half_bot, 0, 0.3);
+              int upper_body_g = get_average_color(im, left, right, head_bot, half_bot, 1, 0.3);
+              int upper_body_b = get_average_color(im, left, right, head_bot, half_bot, 2, 0.3);
+              snprintf(upper_body, sizeof(upper_body), "upper_body. r:%d, g:%d, b:%d", upper_body_r, upper_body_g, upper_body_b);
 
               if (alphabet) {
                   image label = get_label(alphabet, upper_body, (im.h*.03));
@@ -334,8 +356,12 @@ void draw_detections(image im, detection *dets, int num, float thresh, char **na
                   free_image(tmask);
               }
 
-              char bottom_body[] = "bottom body";
+              char bottom_body[64];
               draw_box_width(im, left, half_bot, right, bot, width, red, green, blue);
+              int bottom_body_r = get_average_color(im, left, right, half_bot, bot, 0, 0.3);
+              int bottom_body_g = get_average_color(im, left, right, half_bot, bot, 1, 0.3);
+              int bottom_body_b = get_average_color(im, left, right, half_bot, bot, 2, 0.3);
+              snprintf(bottom_body, sizeof(bottom_body), "bottom_body. r:%d, g:%d, b:%d", bottom_body_r, bottom_body_g, bottom_body_b);
 
               if (alphabet) {
                   image label = get_label(alphabet, bottom_body, (im.h*.03));
