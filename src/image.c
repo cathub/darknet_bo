@@ -238,16 +238,57 @@ image **load_alphabet()
 
 float get_average_color(image im, int left, int right, int top, int bot, int c, float ratio) {
   float result = 0.0;
-  left = left + (right - left) * ratio;
-  right = right - (right-left) * ratio;
-  top = top + (bot - top) * ratio;
-  bot = bot - (bot - top) * ratio;
-  for(int j = left; j < right; ++j){
-      for(int i = top; i < bot; ++i){
+  int shrinked_left = left + (right - left) * ratio;
+  int shrinked_right = right - (right-left) * ratio;
+  int shrinked_top = top + (bot - top) * ratio;
+  int shrinked_bot = bot - (bot - top) * ratio;
+  for(int j = shrinked_left; j < shrinked_right; ++j){
+      for(int i = shrinked_top; i < shrinked_bot; ++i){
           result += get_pixel(im, j , i, c);
       }
   }
-  return 255.0 * result/((right-left)*(bot-top));
+  return 255.0 * result/((shrinked_right-shrinked_left)*(shrinked_bot-shrinked_top));
+}
+  // Black	#000000	(0,0,0)	(0°,0%,0%)	(0°,0%,0%)
+ 	// White	#FFFFFF	(255,255,255)	(0°,0%,100%)	(0°,0%,100%)
+ 	// Red	#FF0000	(255,0,0)	(0°,100%,100%)	(0°,100%,50%)
+ 	// Lime	#00FF00	(0,255,0)	(120°,100%,100%)	(120°,100%,50%)
+ 	// Blue	#0000FF	(0,0,255)	(240°,100%,100%)	(240°,100%,50%)
+ 	// Yellow	#FFFF00	(255,255,0)	(60°,100%,100%)	(60°,100%,50%)
+ 	// Cyan	#00FFFF	(0,255,255)	(180°,100%,100%)	(180°,100%,50%)
+ 	// Magenta	#FF00FF	(255,0,255)	(300°,100%,100%)	(300°,100%,50%)
+ 	// Silver	#C0C0C0	(192,192,192)	(0°,0%,75%)	(0°,0%,75%)
+ 	// Gray	#808080	(128,128,128)	(0°,0%,50%)	(0°,0%,50%)
+ 	// Maroon	#800000	(128,0,0)	(0°,100%,50%)	(0°,100%,25%)
+ 	// Olive	#808000	(128,128,0)	(60°,100%,50%)	(60°,100%,25%)
+ 	// Green	#008000	(0,128,0)	(120°,100%,50%)	(120°,100%,25%)
+ 	// Purple	#800080	(128,0,128)	(300°,100%,50%)	(300°,100%,25%)
+ 	// Teal	#008080	(0,128,128)	(180°,100%,50%)	(180°,100%,25%)
+ 	// Navy	#000080	(0,0,128)	(240°,100%,50%)	(240°,100%,25%)
+
+static char color_name[][64] = {"Black", "White", "Red", "Lime", "Blue",
+                                "Yellow", "Cyan", "Magenta", "Silver", "Gray",
+                                "Maroon", "Olive", "Green", "Purple", "Teal",
+                                "Navy"};
+static float color_rgb[][3] = {{0,0,0}, {255,255,255}, {255,0,0}, {0,255,0},
+                               {0,0,255}, {255,255,0}, {0,255,255},
+                               {255,0,255}, {192,192,192}, {128,128,128},
+                               {128,0,0}, {128,128,0}, {0,128,0}, {128,0,128},
+                               {0,128,128}, {0,0,128}};
+
+char* get_color_name(float r, float g, float b) {
+  float dist = -1;
+  char* color;
+  for (int i = 0; i < 16; i++) {
+    float d = pow(pow((r - color_rgb[i][0]), 2) +
+                  pow((g - color_rgb[i][1]), 2) +
+                  pow((b - color_rgb[i][2]), 2), 0.5);
+    if (dist < 0 || d < dist) {
+      dist = d;
+      color = color_name[i];
+    }
+  }
+  return color;
 }
 
 void draw_detections(image im, detection *dets, int num, float thresh, char **names, image **alphabet, int classes)
@@ -314,10 +355,11 @@ void draw_detections(image im, detection *dets, int num, float thresh, char **na
 
               char head[64];
               draw_box_width(im, left, top, right, head_bot, width, red, green, blue);
-              int head_r = get_average_color(im, left, right, top, head_bot, 0, 0.3);
-              int head_g = get_average_color(im, left, right, top, head_bot, 1, 0.3);
-              int head_b = get_average_color(im, left, right, top, head_bot, 2, 0.3);
-              snprintf(head, sizeof(head), "head. r:%d, g:%d, b:%d", head_r, head_g, head_b);
+              float head_r = get_average_color(im, left, right, top, head_bot, 0, 0.3);
+              float head_g = get_average_color(im, left, right, top, head_bot, 1, 0.3);
+              float head_b = get_average_color(im, left, right, top, head_bot, 2, 0.3);
+              snprintf(head, sizeof(head), "%s",
+                       get_color_name(head_r, head_g, head_b));
 
               if (alphabet) {
                   image label = get_label(alphabet, head, (im.h*.03));
@@ -336,10 +378,11 @@ void draw_detections(image im, detection *dets, int num, float thresh, char **na
 
               char upper_body[64];
               draw_box_width(im, left, head_bot, right, half_bot, width, red, green, blue);
-              int upper_body_r = get_average_color(im, left, right, head_bot, half_bot, 0, 0.3);
-              int upper_body_g = get_average_color(im, left, right, head_bot, half_bot, 1, 0.3);
-              int upper_body_b = get_average_color(im, left, right, head_bot, half_bot, 2, 0.3);
-              snprintf(upper_body, sizeof(upper_body), "upper_body. r:%d, g:%d, b:%d", upper_body_r, upper_body_g, upper_body_b);
+              float upper_body_r = get_average_color(im, left, right, head_bot, half_bot, 0, 0.3);
+              float upper_body_g = get_average_color(im, left, right, head_bot, half_bot, 1, 0.3);
+              float upper_body_b = get_average_color(im, left, right, head_bot, half_bot, 2, 0.3);
+              snprintf(upper_body, sizeof(upper_body), "%s",
+                       get_color_name(upper_body_r, upper_body_g, upper_body_b));
 
               if (alphabet) {
                   image label = get_label(alphabet, upper_body, (im.h*.03));
@@ -358,10 +401,12 @@ void draw_detections(image im, detection *dets, int num, float thresh, char **na
 
               char bottom_body[64];
               draw_box_width(im, left, half_bot, right, bot, width, red, green, blue);
-              int bottom_body_r = get_average_color(im, left, right, half_bot, bot, 0, 0.3);
-              int bottom_body_g = get_average_color(im, left, right, half_bot, bot, 1, 0.3);
-              int bottom_body_b = get_average_color(im, left, right, half_bot, bot, 2, 0.3);
-              snprintf(bottom_body, sizeof(bottom_body), "bottom_body. r:%d, g:%d, b:%d", bottom_body_r, bottom_body_g, bottom_body_b);
+              float bottom_body_r = get_average_color(im, left, right, half_bot, bot, 0, 0.3);
+              float bottom_body_g = get_average_color(im, left, right, half_bot, bot, 1, 0.3);
+              float bottom_body_b = get_average_color(im, left, right, half_bot, bot, 2, 0.3);
+              snprintf(bottom_body, sizeof(bottom_body),
+                       "%s",
+                       get_color_name(bottom_body_r, bottom_body_g, bottom_body_b));
 
               if (alphabet) {
                   image label = get_label(alphabet, bottom_body, (im.h*.03));
