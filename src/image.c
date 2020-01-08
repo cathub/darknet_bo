@@ -5,6 +5,14 @@
 #include <stdio.h>
 #include <math.h>
 
+// Json api library
+#include <json-c/json.h>
+
+// Xml api library
+// #include <libxml/tree.h>
+// #include <libxml/encoding.h>
+// #include <libxml/xmlwriter.h>
+
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -249,37 +257,16 @@ float get_average_color(image im, int left, int right, int top, int bot, int c, 
   }
   return 255.0 * result/((shrinked_right-shrinked_left)*(shrinked_bot-shrinked_top));
 }
-  // Black	#000000	(0,0,0)	(0°,0%,0%)	(0°,0%,0%)
- 	// White	#FFFFFF	(255,255,255)	(0°,0%,100%)	(0°,0%,100%)
- 	// Red	#FF0000	(255,0,0)	(0°,100%,100%)	(0°,100%,50%)
- 	// Lime	#00FF00	(0,255,0)	(120°,100%,100%)	(120°,100%,50%)
- 	// Blue	#0000FF	(0,0,255)	(240°,100%,100%)	(240°,100%,50%)
- 	// Yellow	#FFFF00	(255,255,0)	(60°,100%,100%)	(60°,100%,50%)
- 	// Cyan	#00FFFF	(0,255,255)	(180°,100%,100%)	(180°,100%,50%)
- 	// Magenta	#FF00FF	(255,0,255)	(300°,100%,100%)	(300°,100%,50%)
- 	// Silver	#C0C0C0	(192,192,192)	(0°,0%,75%)	(0°,0%,75%)
- 	// Gray	#808080	(128,128,128)	(0°,0%,50%)	(0°,0%,50%)
- 	// Maroon	#800000	(128,0,0)	(0°,100%,50%)	(0°,100%,25%)
- 	// Olive	#808000	(128,128,0)	(60°,100%,50%)	(60°,100%,25%)
- 	// Green	#008000	(0,128,0)	(120°,100%,50%)	(120°,100%,25%)
- 	// Purple	#800080	(128,0,128)	(300°,100%,50%)	(300°,100%,25%)
- 	// Teal	#008080	(0,128,128)	(180°,100%,50%)	(180°,100%,25%)
- 	// Navy	#000080	(0,0,128)	(240°,100%,50%)	(240°,100%,25%)
 
-static char color_name[][64] = {"Black", "White", "Red", "Lime", "Blue",
-                                "Yellow", "Cyan", "Magenta", "Silver", "Gray",
-                                "Maroon", "Olive", "Green", "Purple", "Teal",
-                                "Navy"};
-static float color_rgb[][3] = {{0,0,0}, {255,255,255}, {255,0,0}, {0,255,0},
-                               {0,0,255}, {255,255,0}, {0,255,255},
-                               {255,0,255}, {192,192,192}, {128,128,128},
-                               {128,0,0}, {128,128,0}, {0,128,0}, {128,0,128},
-                               {0,128,128}, {0,0,128}};
+static char color_name[][64] = {"Black", "White", "Red",
+                                "Blue", "Yellow", "Green"};
+static float color_rgb[][3] = {{0,0,0}, {255,255,255}, {255,0,0},
+                               {0,0,255}, {255,255,0},{0,128,0}};
 
 char* get_color_name(float r, float g, float b) {
   float dist = -1;
   char* color;
-  for (int i = 0; i < 16; i++) {
+  for (int i = 0; i < 6; i++) {
     float d = pow(pow((r - color_rgb[i][0]), 2) +
                   pow((g - color_rgb[i][1]), 2) +
                   pow((b - color_rgb[i][2]), 2), 0.5);
@@ -291,9 +278,15 @@ char* get_color_name(float r, float g, float b) {
   return color;
 }
 
-void draw_detections(image im, detection *dets, int num, float thresh, char **names, image **alphabet, int classes)
+void draw_detections(image im, detection *dets, int num, float thresh, char **names, image **alphabet, int classes, double time_index)
 {
     int i,j;
+    struct json_object *json_obj = json_object_new_object();
+    char file_name[64];
+    snprintf(file_name, sizeof(file_name), "output-%f.json", time_index);
+    FILE *file = fopen(file_name, "w+");
+    if(file == 0) file_error(file_name);
+    int obj_index = 1;
 
     for(i = 0; i < num; ++i){
         char labelstr[4096] = {0};
@@ -312,28 +305,16 @@ void draw_detections(image im, detection *dets, int num, float thresh, char **na
         }
         if(class >= 0){
             int width = im.h * .006;
-
-            /*
-               if(0){
-               width = pow(prob, 1./2.)*10+1;
-               alphabet = 0;
-               }
-             */
-
-            //printf("%d %s: %.0f%%\n", i, names[class], prob*100);
             int offset = class*123457 % classes;
             float red = get_color(2,offset,classes);
             float green = get_color(1,offset,classes);
             float blue = get_color(0,offset,classes);
             float rgb[3];
 
-            //width = prob*20+2;
-
             rgb[0] = red;
             rgb[1] = green;
             rgb[2] = blue;
             box b = dets[i].bbox;
-            //printf("%f %f %f %f\n", b.x, b.y, b.w, b.h);
 
             int left  = (b.x-b.w/2.)*im.w;
             int right = (b.x+b.w/2.)*im.w;
@@ -345,11 +326,11 @@ void draw_detections(image im, detection *dets, int num, float thresh, char **na
             if(top < 0) top = 0;
             if(bot > im.h-1) bot = im.h-1;
 
-            //printf("labelstr is %s\n", labelstr);
             char *output = NULL;
             output = strstr (labelstr, "person");
 
             if (output != NULL) {
+              struct json_object *json_person = json_object_new_object();
               int head_bot = top + (bot - top)/8;
               int half_bot = top + (bot - top)/2;
 
@@ -360,6 +341,9 @@ void draw_detections(image im, detection *dets, int num, float thresh, char **na
               float head_b = get_average_color(im, left, right, top, head_bot, 2, 0.3);
               snprintf(head, sizeof(head), "%s",
                        get_color_name(head_r, head_g, head_b));
+
+              struct json_object *json_head = json_object_new_string(head);
+              json_object_object_add(json_person, "head_color", json_head);
 
               if (alphabet) {
                   image label = get_label(alphabet, head, (im.h*.03));
@@ -383,6 +367,9 @@ void draw_detections(image im, detection *dets, int num, float thresh, char **na
               float upper_body_b = get_average_color(im, left, right, head_bot, half_bot, 2, 0.3);
               snprintf(upper_body, sizeof(upper_body), "%s",
                        get_color_name(upper_body_r, upper_body_g, upper_body_b));
+
+              struct json_object *json_upper_body = json_object_new_string(upper_body);
+              json_object_object_add(json_person, "upper_body_color", json_upper_body);
 
               if (alphabet) {
                   image label = get_label(alphabet, upper_body, (im.h*.03));
@@ -408,6 +395,11 @@ void draw_detections(image im, detection *dets, int num, float thresh, char **na
                        "%s",
                        get_color_name(bottom_body_r, bottom_body_g, bottom_body_b));
 
+              struct json_object *json_bottom_body = json_object_new_string(bottom_body);
+              json_object_object_add(json_person, "bottom_body_color", json_bottom_body);
+
+              json_object_object_add(json_obj, "person", json_person);
+
               if (alphabet) {
                   image label = get_label(alphabet, bottom_body, (im.h*.03));
                   draw_label(im, half_bot + width, right, label, rgb);
@@ -424,6 +416,10 @@ void draw_detections(image im, detection *dets, int num, float thresh, char **na
               }
               continue;
             }
+            char object[64];
+
+            sprintf(object, "object %d", obj_index++);
+            json_object_object_add(json_obj, object, json_object_new_string(labelstr));
 
             draw_box_width(im, left, top, right, bot, width, red, green, blue);
             if (alphabet) {
@@ -442,6 +438,9 @@ void draw_detections(image im, detection *dets, int num, float thresh, char **na
             }
         }
     }
+    fprintf(file, json_object_to_json_string_ext(json_obj, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY));
+    printf(json_object_to_json_string_ext(json_obj, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY));
+    fclose(file);
 }
 
 void transpose_image(image im)
