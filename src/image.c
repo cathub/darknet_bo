@@ -287,6 +287,7 @@ void draw_detections(image im, detection *dets, int num, float thresh, char **na
     FILE *file = fopen(file_name, "w+");
     if(file == 0) file_error(file_name);
     int obj_index = 1;
+    int person_index = 1;
 
     for(i = 0; i < num; ++i){
         char labelstr[4096] = {0};
@@ -398,7 +399,9 @@ void draw_detections(image im, detection *dets, int num, float thresh, char **na
               struct json_object *json_bottom_body = json_object_new_string(bottom_body);
               json_object_object_add(json_person, "bottom_body_color", json_bottom_body);
 
-              json_object_object_add(json_obj, "person", json_person);
+              char person_object[64];
+              sprintf(person_object, "person %d", person_index++);
+              json_object_object_add(json_obj, person_object, json_person);
 
               if (alphabet) {
                   image label = get_label(alphabet, bottom_body, (im.h*.03));
