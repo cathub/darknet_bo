@@ -256,15 +256,15 @@ float get_average_color(image im, int left, int right, int top, int bot, int c) 
 
 static char color_name[][64] = {"Black", "White", "Red", "Blue", "Yellow",
   "Green", "Pink", "Grey", "Orange", "Light Blue", "Light Green",
-  "Light Yellow", "Light Red", "Light Pink"};
+  "Light Yellow", "Light Pink"};
 static float color_rgb[][3] = {{0,0,0}, {255,255,255}, {255,0,0}, {0,0,255},
   {255,255,0}, {0,128,0}, {255,0,255}, {192,192,192}, {255,165,0},
-  {173,216,230}, {144,238,144}, {255, 255, 224}, {250,128,114}, {255,182,193}};
+  {173,216,230}, {144,238,144}, {255, 255, 224}, {255,182,193}};
 
 char* get_color_name(float r, float g, float b) {
   float dist = -1;
   char* color;
-  for (int i = 0; i < 14; i++) {
+  for (int i = 0; i < 13; i++) {
     float d = pow(pow((r - color_rgb[i][0]), 2) +
                   pow((g - color_rgb[i][1]), 2) +
                   pow((b - color_rgb[i][2]), 2), 0.5);
