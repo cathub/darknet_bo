@@ -21,13 +21,13 @@ OBJDIR=./obj/
 
 CC=gcc
 CPP=g++ -std=c++11
-NVCC=nvcc
+NVCC=/usr/local/cuda/bin/nvcc
 AR=ar
 ARFLAGS=rcs
 OPTS=-Ofast
 LDFLAGS= -lm -pthread
 COMMON= -Iinclude/ -Isrc/
-CFLAGS=-Wall -Wno-unused-result -Wno-unknown-pragmas -Wfatal-errors -fPIC -ljson-c
+CFLAGS=-Wall -Wno-unused-result -Wno-unknown-pragmas -Wfatal-errors -fPIC
 
 ifeq ($(OPENMP), 1)
 CFLAGS+= -fopenmp
@@ -42,7 +42,7 @@ CFLAGS+=$(OPTS)
 ifeq ($(OPENCV), 1)
 COMMON+= -DOPENCV
 CFLAGS+= -DOPENCV
-LDFLAGS+= `pkg-config --libs opencv4` -lstdc++
+LDFLAGS+= `pkg-config --libs opencv4` -ljson-c -lstdc++
 COMMON+= `pkg-config --cflags opencv4`
 endif
 
