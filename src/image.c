@@ -22,6 +22,7 @@
 int windows = 0;
 
 float colors[6][3] = { {1,0,1}, {0,0,1},{0,1,1},{0,1,0},{1,1,0},{1,0,0} };
+const float tiny = 0.000000001;
 
 float get_color(int c, int x, int max)
 {
@@ -324,7 +325,6 @@ char* get_mostcolor_name(image im, int left, int right, int top, int bot) {
           color_max_count = color_count[i];
           color_max_index = i;
       }
-      // printf("color_count %d = %d\n", i, color_count[i]);
   }
   color = color_name[color_max_index];
   return color;
@@ -382,15 +382,21 @@ char* get_weighted_mostcolor_name(image im, int left, int right, int top, int bo
   return color;
 }
 
-static float person_cen[][2] = {{0,0}, {0,0}, {0,0}, {0,0}, {0,0}, {0,0}, {0,0},
-                                {0,0}, {0,0}, {0,0}, {0,0}, {0,0}};
+static float person_cen_prev[][2] = {{0,0}, {0,0}, {0,0}, {0,0}, {0,0}, {0,0},
+                                     {0,0}, {0,0}, {0,0}, {0,0}, {0,0}, {0,0}};
 float point_dist(float x1, float y1, float x2, float y2) {
   return pow(pow(x1-x2, 2) + pow(y1-y2, 2), 0.5);
 }
 
+void swap(int *xp, int *yp)
+{
+    int temp = *xp;
+    *xp = *yp;
+    *yp = temp;
+}
+
 void draw_detections(image im, detection *dets, int num, float thresh, char **names, image **alphabet, int classes, double time_index)
 {
-    int i,j;
     int person_index = 0;
     // dist[i][j] represents the dist of person i to previous center j.
     float dist[][12] = {{0,0,0,0,0,0,0,0,0,0,0,0},
@@ -406,18 +412,16 @@ void draw_detections(image im, detection *dets, int num, float thresh, char **na
                         {0,0,0,0,0,0,0,0,0,0,0,0},
                         {0,0,0,0,0,0,0,0,0,0,0,0}};
 
-   // assign previous center to person index i.
-   int assigned_index[12] = {0,0,0,0,0,0,0,0,0,0,0,0};
-
+   // current frame
    // obj index of person_index i.
    int obj_index[12] = {-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1};
-   float person_cen_ind[][2] = {{0,0}, {0,0}, {0,0}, {0,0}, {0,0}, {0,0}, {0,0},
+   float person_cen_cur[][2] = {{0,0}, {0,0}, {0,0}, {0,0}, {0,0}, {0,0}, {0,0},
                                 {0,0}, {0,0}, {0,0}, {0,0}, {0,0}};
 
-    for(i = 0; i < num; ++i){
+    for(int i = 0; i < num; ++i){
         char labelstr[4096] = {0};
         int class = -1;
-        for(j = 0; j < classes; ++j){
+        for(int j = 0; j < classes; ++j){
             if (dets[i].prob[j] > thresh){
                 if (class < 0) {
                     strcat(labelstr, names[j]);
@@ -430,16 +434,6 @@ void draw_detections(image im, detection *dets, int num, float thresh, char **na
             }
         }
         if(class >= 0){
-            int width = im.h * .006;
-            int offset = class*123457 % classes;
-            float red = get_color(2,offset,classes);
-            float green = get_color(1,offset,classes);
-            float blue = get_color(0,offset,classes);
-            float rgb[3];
-
-            rgb[0] = red;
-            rgb[1] = green;
-            rgb[2] = blue;
             box b = dets[i].bbox;
 
             int left  = (b.x-b.w/2.)*im.w;
@@ -452,29 +446,44 @@ void draw_detections(image im, detection *dets, int num, float thresh, char **na
             if(top < 0) top = 0;
             if(bot > im.h-1) bot = im.h-1;
 
-            //draw_box_width(im, left, top, right, bot, width, red, green, blue);
-
             char *output = NULL;
             output = strstr (labelstr, "person");
 
+            // if this is person.
             if (output != NULL) {
               if (person_index < 12) {
                 float x = (left + right)/2.0;
                 float y = (top + bot)/2.0;
-                person_cen_ind[person_index][0] = x;
-                person_cen_ind[person_index][1] = y;
+                person_cen_cur[person_index][0] = x;
+                person_cen_cur[person_index][1] = y;
                 obj_index[person_index] = i;
-                for(int i = 0; i < 12; i++) {
-                   if (person_cen[i][0] != 0 || person_cen[i][1] != 0) {
-                     dist[person_index][i] = point_dist(x, y, person_cen[i][0],
-                                                        person_cen[i][1]);
+                for(int m = 0; m < 12; m++) {
+                   // previous center m is valid
+                   if (person_cen_prev[m][0] > tiny ||
+                       person_cen_prev[m][1] > tiny) {
+                     dist[person_index][m] = point_dist(x, y,
+                                                        person_cen_prev[m][0],
+                                                        person_cen_prev[m][1]);
                    }
                 }
+                person_index++;
               }
-              person_index++;   // one more person detected
               printf("Detecting person %d\n", person_index);
               continue;
             }
+
+            // if this is not person.
+            int width = im.h * .006;
+            int offset = class*123457 % classes;
+            float red = get_color(2,offset,classes);
+            float green = get_color(1,offset,classes);
+            float blue = get_color(0,offset,classes);
+            float rgb[3];
+
+            rgb[0] = red;
+            rgb[1] = green;
+            rgb[2] = blue;
+
 
             draw_box_width(im, left, top, right, bot, width, red, green, blue);
             if (alphabet) {
@@ -493,33 +502,65 @@ void draw_detections(image im, detection *dets, int num, float thresh, char **na
             }
         }
     }
+   // sort previous centers based on distance of previous center to the image
+   // center.
+   int sort_array[12] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+   float center_x = im.w/2.0;
+   float center_y = im.h/2.0;
+   for (int i = 0; i < 11; i++) {
+       // Last i elements are already in place
+       for (int j = 0; j < 11-i; j++) {
+           int a = sort_array[j];
+           int b = sort_array[j+1];
+           if (person_cen_prev[a][0] < tiny &&
+               person_cen_prev[a][1] < tiny) {
 
+             swap(&sort_array[j], &sort_array[j+1]);
+           }
+           if (person_cen_prev[b][0] < tiny &&
+               person_cen_prev[b][1] < tiny) {
+             continue;
+           }
+
+           if (point_dist(center_x, center_y, person_cen_prev[a][0],
+                          person_cen_prev[a][1]) <
+               point_dist(center_x, center_y, person_cen_prev[b][0],
+                          person_cen_prev[b][1])) {
+             swap(&sort_array[j], &sort_array[j+1]);
+           }
+       }
+   }
+
+   // process person
     for(int i = 0; i < 12; i ++) {
-      if (person_cen[i][0] < 0.00001 && person_cen[i][1] < 0.00001) continue;
+      int prev_index = sort_array[i];
+      if (person_cen_prev[prev_index][0] < tiny &&
+          person_cen_prev[prev_index][1] < tiny) continue;
+
       int assigned_person = -1;
       float min_dist = -1.0;
       for(int j = 0; j < person_index; j++) {
         // person j has already been assigned.
         if (obj_index[j] == -1) continue;
-        if (min_dist < 0 || (dist[i][j] < min_dist)){
-          min_dist = dist[i][j];
+        if (min_dist < 0 || (dist[j][i] < min_dist)){
+          min_dist = dist[j][i];
           assigned_person = j;
         }
       }
       if (assigned_person == -1) {
-        person_cen[i][0] = 0;
-        person_cen[i][1] = 0;
+        person_cen_prev[i][0] = 0;
+        person_cen_prev[i][1] = 0;
         continue;
       }
 
       // update the new center
-      person_cen[i][0] = person_cen_ind[assigned_person][0];
-      person_cen[i][1] = person_cen_ind[assigned_person][1];
+      person_cen_prev[i][0] = person_cen_cur[assigned_person][0];
+      person_cen_prev[i][1] = person_cen_cur[assigned_person][1];
 
       char person_label[64];
-      snprintf(person_label, sizeof(person_label), "person_%d",
-               i);
+      snprintf(person_label, sizeof(person_label), "person_%d", i);
       int obj_ind = obj_index[assigned_person];
+      obj_index[assigned_person] = -1;
       box bp = dets[obj_ind].bbox;
 
       int left  = (bp.x-bp.w/2.)*im.w;
@@ -553,23 +594,22 @@ void draw_detections(image im, detection *dets, int num, float thresh, char **na
           free_image(resized_mask);
           free_image(tmask);
       }
-      obj_index[assigned_person] = -1;
     }
+
+    // process left over person.
     for(int i = 0; i < person_index; i++) {
-      printf("processing person %d\n", i);
       if (obj_index[i] == -1) continue;
       for (int j = 0; j < 12; j++) {
         // if j is not assigned. take it.
-        if (person_cen[j][0] < 0.00001 && person_cen[j][1] < 0.00001) {
+        if (person_cen_prev[j][0] < tiny && person_cen_prev[j][1] < tiny) {
           // update the new center
           printf("assign slot %d\n", j);
-          person_cen[j][0] = person_cen_ind[i][0];
-          person_cen[j][1] = person_cen_ind[i][1];
+          person_cen_prev[j][0] = person_cen_cur[i][0];
+          person_cen_prev[j][1] = person_cen_cur[i][1];
 
           printf("after assign slot\n");
           char person_label[64];
-          snprintf(person_label, sizeof(person_label), "person_%d",
-                   j);
+          snprintf(person_label, sizeof(person_label), "person_%d", j);
           int obj_ind = obj_index[i];
           box bp = dets[obj_ind].bbox;
 
