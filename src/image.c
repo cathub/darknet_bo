@@ -382,8 +382,22 @@ char* get_weighted_mostcolor_name(image im, int left, int right, int top, int bo
   return color;
 }
 
+// struct PointNode {
+//  float x;
+//  float y;
+//  int index;
+//  struct PointNode* next;
+//};
+
+// static struct PointNode* person_cen_prev_head = NULL;
+//static struct PointNode* person_cen_prev_tail = NULL;
+//static int person_cen_cnt = 0;
+
 static float person_cen_prev[][2] = {{0,0}, {0,0}, {0,0}, {0,0}, {0,0}, {0,0},
                                      {0,0}, {0,0}, {0,0}, {0,0}, {0,0}, {0,0}};
+static int person_cen_prev_index[12] = {-1, -1, -1, -1, -1, -1,
+                                        -1, -1, -1, -1, -1, -1};
+static int cur_person_index = 1;
 float point_dist(float x1, float y1, float x2, float y2) {
   return pow(pow(x1-x2, 2) + pow(y1-y2, 2), 0.5);
 }
@@ -550,6 +564,7 @@ void draw_detections(image im, detection *dets, int num, float thresh, char **na
       if (assigned_person == -1) {
         person_cen_prev[i][0] = 0;
         person_cen_prev[i][1] = 0;
+        person_cen_prev_index[i] = -1;
         continue;
       }
 
@@ -558,7 +573,8 @@ void draw_detections(image im, detection *dets, int num, float thresh, char **na
       person_cen_prev[i][1] = person_cen_cur[assigned_person][1];
 
       char person_label[64];
-      snprintf(person_label, sizeof(person_label), "person_%d", i);
+      snprintf(person_label, sizeof(person_label), "person_%d",
+               person_cen_prev_index[i]);
       int obj_ind = obj_index[assigned_person];
       obj_index[assigned_person] = -1;
       box bp = dets[obj_ind].bbox;
@@ -604,6 +620,7 @@ void draw_detections(image im, detection *dets, int num, float thresh, char **na
         if (person_cen_prev[j][0] < tiny && person_cen_prev[j][1] < tiny) {
           // update the new center
           printf("assign slot %d\n", j);
+          person_cen_prev_index[j] = cur_person_index++;
           person_cen_prev[j][0] = person_cen_cur[i][0];
           person_cen_prev[j][1] = person_cen_cur[i][1];
 
