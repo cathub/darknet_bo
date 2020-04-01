@@ -1,28 +1,26 @@
-#include "image.h"
-#include "utils.h"
 #include "blas.h"
 #include "cuda.h"
-#include <stdio.h>
+#include "image.h"
+#include "utils.h"
+
 #include <math.h>
+#include <stdbool.h>
+#include <stdio.h>
 
 // Json api library
 #include <json-c/json.h>
-
-// Xml api library
-// #include <libxml/tree.h>
-// #include <libxml/encoding.h>
-// #include <libxml/xmlwriter.h>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 #define COLOR_NUM 12
+#define PERSON_NUM 24
 
 int windows = 0;
 
 float colors[6][3] = { {1,0,1}, {0,0,1},{0,1,1},{0,1,0},{1,1,0},{1,0,0} };
-const float tiny = 0.000000001;
+const float tiny = 0.00000000001;
 
 float get_color(int c, int x, int max)
 {
@@ -97,7 +95,6 @@ static float bilinear_interpolate(image im, float x, float y, int c)
         dy     *   dx   * get_pixel_extend(im, ix+1, iy+1, c);
     return val;
 }
-
 
 void composite_image(image source, image dest, int dx, int dy)
 {
@@ -267,137 +264,95 @@ static float color_rgb[][3] = {{0,0,0}, {255,255,255}, {64,64,64},
                                {255,255,0}, {255,102,0},
                                {0,128,0}};
 
-char* get_color_name(float r, float g, float b) {
+int get_color_index(float r, float g, float b) {
   float dist = -1;
-  char* color;
+  int color_index;
   for (int i = 0; i < COLOR_NUM; i++) {
     float d = pow(pow((r - color_rgb[i][0]), 2) +
                   pow((g - color_rgb[i][1]), 2) +
                   pow((b - color_rgb[i][2]), 2), 0.5);
     if (dist < 0 || d < dist) {
       dist = d;
-      color = color_name[i];
+      color_index = i;
     }
   }
-  return color;
+  return color_index;
 }
 
-// get the color name by:
+float color_dist_euclid(float r1, float g1, float b1,
+                        float r2, float g2, float b2) {
+  return pow(pow((r1 - r2), 2) +
+             pow((g1 - g2), 2) +
+             pow((b1 - b2), 2), 0.5);
+}
+
+float color_dist_weighted(float r1, float g1, float b1,
+                          float r2, float g2, float b2) {
+  float r_mean = (r1 + r2) / 2.0;
+  return pow((2 + r_mean/256) * pow((r1 - r2), 2) + 4 * pow((g1 - g2), 2) +
+             (2 + (255 - r_mean)/256) * pow((b1 - b2), 2), 0.5);
+}
+
+int get_most_color_index(image im, int left, int right, int top, int bot,
+                         float (*get_color_distance)(float, float, float,
+                                                     float, float, float)) {
+  int color_count[COLOR_NUM] = {0};
+  int pixel_color_index;
+  int color_max_count = 0;
+  int color_max_index = 0;
+
+  for(int i = left; i < right; ++i){
+      for(int j = top; j < bot; ++j){
+          float r = 255.0 * get_pixel(im, i , j, 0); // red
+          float g = 255.0 * get_pixel(im, i , j, 1); // green
+          float b = 255.0 * get_pixel(im, i , j, 2); // blue
+
+          float dist = -1;
+          for (int k = 0; k < COLOR_NUM; k++) {
+            float d = get_color_distance(r, g, b, color_rgb[k][0],
+                                         color_rgb[k][1], color_rgb[k][2]);
+            if (dist < 0 || d < dist) {
+                dist = d;
+                pixel_color_index = k;
+            }
+          }
+          color_count[pixel_color_index]++;
+      }
+  }
+
+  for (int i = 0; i < COLOR_NUM; ++i) {
+      if (color_count[i] > color_max_count) {
+          color_max_count = color_count[i];
+          color_max_index = i;
+      }
+  }
+  return color_max_index;
+}
+
+// Get the color name index by:
 // 1) assign the pixel color to the nearest color match (KNN)
 // 2) count the number of each assigned color numnber
 // 3) assign the region color to be the most counted color
-
-char* get_mostcolor_name(image im, int left, int right, int top, int bot) {
-  float pixel_color[3];
-  float dist = -1;
-  int color_count[COLOR_NUM];
-  int pixel_color_index;
-  int color_max_count = 0;
-  int color_max_index = 0;
-  char* color;
-
-  for (int i = 0; i < COLOR_NUM; ++i) {
-      color_count[i] = 0;
-  }
-
-  for(int j = left; j < right; ++j){
-      for(int i = top; i < bot; ++i){
-          pixel_color[0] = 255.0 * get_pixel(im, j , i, 0); // red
-          pixel_color[1] = 255.0 * get_pixel(im, j , i, 1); // green
-          pixel_color[2] = 255.0 * get_pixel(im, j , i, 2); // blue
-
-          dist = -1;
-          for (int k = 0; k < COLOR_NUM; k++) {
-            float d = pow(pow((pixel_color[0] - color_rgb[k][0]), 2) +
-                            pow((pixel_color[1] - color_rgb[k][1]), 2) +
-                            pow((pixel_color[2] - color_rgb[k][2]), 2), 0.5);
-            if (dist < 0 || d < dist) {
-                dist = d;
-                pixel_color_index = k;
-            }
-          }
-          color_count[pixel_color_index]++;
-      }
-  }
-
-  for (int i = 0; i < COLOR_NUM; ++i) {
-      if (color_count[i] > color_max_count) {
-          color_max_count = color_count[i];
-          color_max_index = i;
-      }
-  }
-  color = color_name[color_max_index];
-  return color;
+int get_most_color_index_eu(image im, int left, int right, int top, int bot) {
+  return get_most_color_index(im, left, right, top, bot, color_dist_euclid);
 }
 
-char* get_weighted_mostcolor_name(image im, int left, int right, int top, int bot) {
-  int pixel_color[3];
-  float dist = -1;
-  int color_count[COLOR_NUM];
-  int pixel_color_index;
-  int color_max_count = 0;
-  int color_max_index = 0;
-  char* color;
-  float r_mean = 0.0;
-
-  for (int i = 0; i < COLOR_NUM; ++i) {
-      color_count[i] = 0;
-  }
-
-  for(int j = left; j < right; ++j){
-      for(int i = top; i < bot; ++i){
-          pixel_color[0] = floor(255 * get_pixel(im, j , i, 0)); // red
-          pixel_color[1] = floor(255 * get_pixel(im, j , i, 1)); // green
-          pixel_color[2] = floor(255 * get_pixel(im, j , i, 2)); // blue
-
-          // ignore background noise color [255, 0 , 255]
-          if ( pixel_color[0] == 255 && pixel_color[1] == 0 && pixel_color[2] == 255) {
-              continue;
-          }
-
-        // printf("r = %d, g = %d, b = %d \n ", pixel_color[0],pixel_color[1], pixel_color[2]);
-
-          dist = -1;
-          for (int k = 0; k < COLOR_NUM; k++) {
-            r_mean = (pixel_color[0] + color_rgb[k][0]) / 2;
-            float d = pow((2 + r_mean/256) * pow((pixel_color[0] - color_rgb[k][0]), 2) +
-                      4 * pow((pixel_color[1] - color_rgb[k][1]), 2) + (2 + (255 - r_mean)/256) * pow((pixel_color[2] - color_rgb[k][2]), 2), 0.5);
-
-            if (dist < 0 || d < dist) {
-                dist = d;
-                pixel_color_index = k;
-            }
-          }
-          color_count[pixel_color_index]++;
-      }
-  }
-  for (int i = 0; i < COLOR_NUM; ++i) {
-      if (color_count[i] > color_max_count) {
-          color_max_count = color_count[i];
-          color_max_index = i;
-      }
-     //  printf("color_count %d = %d\n", i, color_count[i]);
-  }
-  color = color_name[color_max_index];
-  return color;
+int get_most_color_index_weighted(image im, int left, int right, int top,
+                                  int bot) {
+  return get_most_color_index(im, left, right, top, bot, color_dist_weighted);
 }
 
-// struct PointNode {
-//  float x;
-//  float y;
-//  int index;
-//  struct PointNode* next;
-//};
-
-// static struct PointNode* person_cen_prev_head = NULL;
-//static struct PointNode* person_cen_prev_tail = NULL;
-//static int person_cen_cnt = 0;
-
-static float person_cen_prev[][2] = {{0,0}, {0,0}, {0,0}, {0,0}, {0,0}, {0,0},
-                                     {0,0}, {0,0}, {0,0}, {0,0}, {0,0}, {0,0}};
-static int person_cen_prev_index[12] = {-1, -1, -1, -1, -1, -1,
-                                        -1, -1, -1, -1, -1, -1};
+static float person_cen_prev[PERSON_NUM][2] = {{0,0}};
+static int person_cen_prev_index[PERSON_NUM] = {0};
+static int prev_cen_miss_cnt[PERSON_NUM] = { 0 };
+static int prev_person_color[PERSON_NUM] = { 0 };
 static int cur_person_index = 1;
+
+static float color_person[][3] =
+  {{255,0,0}, {0,255,0}, {0,0,255}, {255,255,0}, {0,255,255}, {255,165,0},
+   {0,100,0}, {128,0,128}};
+static const int color_cnt = 8;
+
 float point_dist(float x1, float y1, float x2, float y2) {
   return pow(pow(x1-x2, 2) + pow(y1-y2, 2), 0.5);
 }
@@ -409,266 +364,303 @@ void swap(int *xp, int *yp)
     *yp = temp;
 }
 
-void draw_detections(image im, detection *dets, int num, float thresh, char **names, image **alphabet, int classes, double time_index)
+void draw_detections(image im, detection *dets, int num, float thresh,
+  char **names, image **alphabet, int classes, double time_index)
 {
-    int person_index = 0;
-    // dist[i][j] represents the dist of person i to previous center j.
-    float dist[][12] = {{0,0,0,0,0,0,0,0,0,0,0,0},
-                        {0,0,0,0,0,0,0,0,0,0,0,0},
-                        {0,0,0,0,0,0,0,0,0,0,0,0},
-                        {0,0,0,0,0,0,0,0,0,0,0,0},
-                        {0,0,0,0,0,0,0,0,0,0,0,0},
-                        {0,0,0,0,0,0,0,0,0,0,0,0},
-                        {0,0,0,0,0,0,0,0,0,0,0,0},
-                        {0,0,0,0,0,0,0,0,0,0,0,0},
-                        {0,0,0,0,0,0,0,0,0,0,0,0},
-                        {0,0,0,0,0,0,0,0,0,0,0,0},
-                        {0,0,0,0,0,0,0,0,0,0,0,0},
-                        {0,0,0,0,0,0,0,0,0,0,0,0}};
+   int person_index = 0;
+   int width = im.h * .006;
+
+   // dist[i][j] represents the dist of person i to previous center j.
+   float dist[PERSON_NUM][PERSON_NUM] = { {0.0} };
 
    // current frame
    // obj index of person_index i.
-   int obj_index[12] = {-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1};
-   float person_cen_cur[][2] = {{0,0}, {0,0}, {0,0}, {0,0}, {0,0}, {0,0}, {0,0},
-                                {0,0}, {0,0}, {0,0}, {0,0}, {0,0}};
+   int obj_index[PERSON_NUM] = { 0 };
+   float person_cen_cur[PERSON_NUM][2] = { {0.0, 0.0} };
 
-    for(int i = 0; i < num; ++i){
-        char labelstr[4096] = {0};
-        int class = -1;
-        for(int j = 0; j < classes; ++j){
-            if (dets[i].prob[j] > thresh){
-                if (class < 0) {
-                    strcat(labelstr, names[j]);
-                    class = j;
-                } else {
-                    strcat(labelstr, ", ");
-                    strcat(labelstr, names[j]);
-                }
-                printf("%s: %.0f%%\n", names[j], dets[i].prob[j]*100);
-            }
-        }
-        if(class >= 0){
-            box b = dets[i].bbox;
+   for(int i = 0; i < num; ++i){
+     char labelstr[4096] = {0};
+     int class = -1;
+     for(int j = 0; j < classes; ++j){
+       if (dets[i].prob[j] > thresh){
+         if (class < 0) {
+           strcat(labelstr, names[j]);
+           class = j;
+         } else {
+           strcat(labelstr, ", ");
+           strcat(labelstr, names[j]);
+         }
+         printf("%s: %.0f%%\n", names[j], dets[i].prob[j]*100);
+       }
+     }
 
-            int left  = (b.x-b.w/2.)*im.w;
-            int right = (b.x+b.w/2.)*im.w;
-            int top   = (b.y-b.h/2.)*im.h;
-            int bot   = (b.y+b.h/2.)*im.h;
+     if (class >= 0) {
+       box b = dets[i].bbox;
 
-            if(left < 0) left = 0;
-            if(right > im.w-1) right = im.w-1;
-            if(top < 0) top = 0;
-            if(bot > im.h-1) bot = im.h-1;
+       int left  = (b.x-b.w/2.)*im.w;
+       int right = (b.x+b.w/2.)*im.w;
+       int top   = (b.y-b.h/2.)*im.h;
+       int bot   = (b.y+b.h/2.)*im.h;
 
-            char *output = NULL;
-            output = strstr (labelstr, "person");
+       if(left < 0) left = 0;
+       if(right > im.w-1) right = im.w-1;
+       if(top < 0) top = 0;
+       if(bot > im.h-1) bot = im.h-1;
 
-            // if this is person.
-            if (output != NULL) {
-              if (person_index < 12) {
-                float x = (left + right)/2.0;
-                float y = (top + bot)/2.0;
-                person_cen_cur[person_index][0] = x;
-                person_cen_cur[person_index][1] = y;
-                obj_index[person_index] = i;
-                for(int m = 0; m < 12; m++) {
-                   // previous center m is valid
-                   if (person_cen_prev[m][0] > tiny ||
-                       person_cen_prev[m][1] > tiny) {
-                     dist[person_index][m] = point_dist(x, y,
-                                                        person_cen_prev[m][0],
-                                                        person_cen_prev[m][1]);
-                   }
-                }
-                person_index++;
-              }
-              printf("Detecting person %d\n", person_index);
-              continue;
-            }
+       char *output = NULL;
+       output = strstr (labelstr, "person");
 
-            // if this is not person.
-            int width = im.h * .006;
-            int offset = class*123457 % classes;
-            float red = get_color(2,offset,classes);
-            float green = get_color(1,offset,classes);
-            float blue = get_color(0,offset,classes);
-            float rgb[3];
+       // if this is person.
+       if (output != NULL) {
+         if (person_index < PERSON_NUM) {
+           float x = (left + right)/2.0;
+           float y = (top + bot)/2.0;
+           person_cen_cur[person_index][0] = x;
+           person_cen_cur[person_index][1] = y;
+           obj_index[person_index] = i;
+           for(int m = 0; m < PERSON_NUM; m++) {
+             // previous center m is valid
+             if (person_cen_prev[m][0] > tiny ||
+                 person_cen_prev[m][1] > tiny) {
+               dist[person_index][m] = point_dist(x, y, person_cen_prev[m][0],
+		                                              person_cen_prev[m][1]);
 
-            rgb[0] = red;
-            rgb[1] = green;
-            rgb[2] = blue;
+             }
+	         }
+           person_index++;
+	       }
+         printf("Detecting person %d\n", person_index);
+       }
+     }
+   }
 
-
-            draw_box_width(im, left, top, right, bot, width, red, green, blue);
-            if (alphabet) {
-                image label = get_label(alphabet, labelstr, (im.h*.03));
-                draw_label(im, top + width, left, label, rgb);
-                free_image(label);
-            }
-            if (dets[i].mask){
-                image mask = float_to_image(14, 14, 1, dets[i].mask);
-                image resized_mask = resize_image(mask, b.w*im.w, b.h*im.h);
-                image tmask = threshold_image(resized_mask, .5);
-                embed_image(tmask, im, left, top);
-                free_image(mask);
-                free_image(resized_mask);
-                free_image(tmask);
-            }
-        }
-    }
-   // sort previous centers based on distance of previous center to the image
+   // sort current centers based on distance of current center to the image
    // center.
-   int sort_array[12] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
    float center_x = im.w/2.0;
    float center_y = im.h/2.0;
-   for (int i = 0; i < 11; i++) {
-       // Last i elements are already in place
-       for (int j = 0; j < 11-i; j++) {
-           int a = sort_array[j];
-           int b = sort_array[j+1];
-           if (person_cen_prev[a][0] < tiny &&
-               person_cen_prev[a][1] < tiny) {
+   int sort_array[PERSON_NUM];
+   for(int i = 0; i < PERSON_NUM; i++) {
+     sort_array[i] = i;
+   }
 
-             swap(&sort_array[j], &sort_array[j+1]);
-           }
-           if (person_cen_prev[b][0] < tiny &&
-               person_cen_prev[b][1] < tiny) {
-             continue;
-           }
-
-           if (point_dist(center_x, center_y, person_cen_prev[a][0],
-                          person_cen_prev[a][1]) <
-               point_dist(center_x, center_y, person_cen_prev[b][0],
-                          person_cen_prev[b][1])) {
-             swap(&sort_array[j], &sort_array[j+1]);
-           }
+   for (int i = 0; i < PERSON_NUM-1; i++) {
+     // Last i elements are already in place
+     for (int j = 0; j < PERSON_NUM-1-i; j++) {
+       int a = sort_array[j];
+       int b = sort_array[j+1];
+       if (person_cen_cur[b][0] < tiny && person_cen_cur[b][1] < tiny) {
+         continue;
        }
+       if (person_cen_cur[a][0] < tiny && person_cen_cur[a][1] < tiny) {
+         swap(&sort_array[j], &sort_array[j+1]);
+       } else if (point_dist(center_x, center_y, person_cen_cur[a][0],
+                             person_cen_cur[a][1]) >
+                  point_dist(center_x, center_y, person_cen_cur[b][0],
+                             person_cen_cur[b][1])) {
+         swap(&sort_array[j], &sort_array[j+1]);
+       }
+     }
    }
 
    // process person
-    for(int i = 0; i < 12; i ++) {
-      int prev_index = sort_array[i];
-      if (person_cen_prev[prev_index][0] < tiny &&
-          person_cen_prev[prev_index][1] < tiny) continue;
+   // Iterate cur center from center to corner.
+   bool prev_assigned[PERSON_NUM] = { false };
+   for(int i = 0; i < person_index; i++) {
+     // cur_index is the index of current center.
+     int cur_index = sort_array[i];
+     if (person_cen_cur[cur_index][0] < tiny &&
+         person_cen_cur[cur_index][1] < tiny) continue;
 
-      int assigned_person = -1;
-      float min_dist = -1.0;
-      for(int j = 0; j < person_index; j++) {
-        // person j has already been assigned.
-        if (obj_index[j] == -1) continue;
-        if (min_dist < 0 || (dist[j][i] < min_dist)){
-          min_dist = dist[j][i];
-          assigned_person = j;
-        }
-      }
-      if (assigned_person == -1) {
-        person_cen_prev[i][0] = 0;
-        person_cen_prev[i][1] = 0;
-        person_cen_prev_index[i] = -1;
-        continue;
-      }
+     int assigned_prev_index = -1;
+     int assigned_prev_backup = -1;
+     float min_backup_dist = -1.0;
+     float min_dist = -1.0;
 
-      // update the new center
-      person_cen_prev[i][0] = person_cen_cur[assigned_person][0];
-      person_cen_prev[i][1] = person_cen_cur[assigned_person][1];
+     // Iterate prev center.
+     for(int j = 0; j < PERSON_NUM; j++) {
+       // prev center j has already been assigned.
+       if (prev_assigned[j] == true) continue;
+       if (person_cen_prev[j][0] < tiny && person_cen_prev[j][1] < tiny) continue;
+       if (min_dist < 0 || (dist[cur_index][j] < min_dist)) {
+	        min_backup_dist = min_dist;
+	        assigned_prev_backup = assigned_prev_index;
+          min_dist = dist[cur_index][j];
+          assigned_prev_index = j;
+       }
+     }
 
-      char person_label[64];
-      snprintf(person_label, sizeof(person_label), "person_%d",
-               person_cen_prev_index[i]);
-      int obj_ind = obj_index[assigned_person];
-      obj_index[assigned_person] = -1;
-      box bp = dets[obj_ind].bbox;
+     int obj_idx = obj_index[cur_index];
+     box cur_box = dets[obj_idx].bbox;
+     int left = (cur_box.x - cur_box.w/2.)*im.w;
+     int right = (cur_box.x + cur_box.w/2.)*im.w;
+     int top = (cur_box.y - cur_box.h/2.)*im.h;
+     int bot = (cur_box.y + cur_box.h/2.)*im.h;
 
-      int left  = (bp.x-bp.w/2.)*im.w;
-      int right = (bp.x+bp.w/2.)*im.w;
-      int top   = (bp.y-bp.h/2.)*im.h;
-      int bot   = (bp.y+bp.h/2.)*im.h;
+     struct json_object *json_person = json_object_new_object();
+     int neck = top + (bot - top)/8;
+     int waist = top + (bot - top)/2;
+     int ankle = top + (bot - top)/10*9;
 
-      int width = im.h * .006;
-      int offset = i * 123457 % 12;
-      float red = get_color(2,offset,12);
-      float green = get_color(1,offset,12);
-      float blue = get_color(0,offset,12);
-      float rgb[3];
+     char head[64];
+     int head_left = left + (right - left) * 0.3;
+     int head_right = right - (right-left) * 0.3;
+     int head_top = top + (neck - top) * 0.2;
+     int head_bot = neck - (neck - top) * 0.2;
 
-      rgb[0] = red;
-      rgb[1] = green;
-      rgb[2] = blue;
+     int offset = 123457 % classes;
+     float red = get_color(2, offset, classes);
+     float green = get_color(1,offset,classes);
+     float blue = get_color(0,offset,classes);
 
-      draw_box_width(im, left, top, right, bot, width, red, green, blue);
-      if (alphabet) {
-          image label = get_label(alphabet, person_label, (im.h*.03));
-          draw_label(im, top + width, left, label, rgb);
-          free_image(label);
-      }
-      if (dets[obj_ind].mask){
-          image mask = float_to_image(14, 14, 1, dets[obj_ind].mask);
-          image resized_mask = resize_image(mask, bp.w*im.w, bp.h*im.h);
-          image tmask = threshold_image(resized_mask, .5);
-          embed_image(tmask, im, left, top);
-          free_image(mask);
-          free_image(resized_mask);
-          free_image(tmask);
-      }
-    }
+     float rgb[3];
+     rgb[0] = red;
+     rgb[1] = green;
+     rgb[2] = blue;
 
-    // process left over person.
-    for(int i = 0; i < person_index; i++) {
-      if (obj_index[i] == -1) continue;
-      for (int j = 0; j < 12; j++) {
-        // if j is not assigned. take it.
-        if (person_cen_prev[j][0] < tiny && person_cen_prev[j][1] < tiny) {
-          // update the new center
-          printf("assign slot %d\n", j);
-          person_cen_prev_index[j] = cur_person_index++;
-          person_cen_prev[j][0] = person_cen_cur[i][0];
-          person_cen_prev[j][1] = person_cen_cur[i][1];
+     // printf("Detecting person %d head\n", person_index);
+     draw_box_width(im, head_left, head_top, head_right, head_bot, width, red,
+                    green, blue);
+     snprintf(head, sizeof(head), "%s",
+              color_name[get_most_color_index_weighted(im, head_left,
+                         head_right, head_top, head_bot)]);
 
-          printf("after assign slot\n");
-          char person_label[64];
-          snprintf(person_label, sizeof(person_label), "person_%d", j);
-          int obj_ind = obj_index[i];
-          box bp = dets[obj_ind].bbox;
+     struct json_object *json_head = json_object_new_string(head);
+     json_object_object_add(json_person, "head_color", json_head);
 
-          printf("after bp\n");
-          int left  = (bp.x-bp.w/2.)*im.w;
-          int right = (bp.x+bp.w/2.)*im.w;
-          int top   = (bp.y-bp.h/2.)*im.h;
-          int bot   = (bp.y+bp.h/2.)*im.h;
+     if (alphabet) {
+       image label = get_label(alphabet, head, (im.h*.01));
+       draw_label(im, head_top + width, head_left, label, rgb);
+       free_image(label);
+     }
+     if (dets[obj_idx].mask){
+       image mask = float_to_image(14, 14, 1, dets[obj_idx].mask);
+       image resized_mask = resize_image(mask, cur_box.w*im.w, cur_box.h*im.h);
+       image tmask = threshold_image(resized_mask, .5);
+       embed_image(tmask, im, head_left, head_top);
+       free_image(mask);
+       free_image(resized_mask);
+       free_image(tmask);
+     }
 
-          printf("before assign width\n");
-          int width = im.h * .006;
-          int offset = j * 123457 % 12;
-          float red = get_color(2,offset,12);
-          float green = get_color(1,offset,12);
-          float blue = get_color(0,offset,12);
-          float rgb[3];
+     char upper_body[64];
+     int upper_body_left = left + (right - left) * 0.3;
+     int upper_body_right = right - (right-left) * 0.3;
+     int upper_body_top = neck + (waist - neck) * 0.3;
+     int upper_body_bot = waist - (waist - neck) * 0.2;
 
-          rgb[0] = red;
-          rgb[1] = green;
-          rgb[2] = blue;
+     draw_box_width(im, upper_body_left, upper_body_top, upper_body_right,
+                    upper_body_bot, width, red, green, blue);
+     snprintf(upper_body, sizeof(upper_body), "%s",
+              color_name[get_most_color_index_weighted(im, upper_body_left,
+                         upper_body_right, upper_body_top, upper_body_bot)]);
 
-          printf("before draw_box_width\n");
-          draw_box_width(im, left, top, right, bot, width, red, green, blue);
-          if (alphabet) {
-              image label = get_label(alphabet, person_label, (im.h*.03));
-              draw_label(im, top + width, left, label, rgb);
-              free_image(label);
-          }
-          if (dets[obj_ind].mask){
-              image mask = float_to_image(14, 14, 1, dets[obj_ind].mask);
-              image resized_mask = resize_image(mask, bp.w*im.w, bp.h*im.h);
-              image tmask = threshold_image(resized_mask, .5);
-              embed_image(tmask, im, left, top);
-              free_image(mask);
-              free_image(resized_mask);
-              free_image(tmask);
-          }
-          obj_index[i] = -1;
-          break;
-        }
-      }
-    }
+     struct json_object *json_upper_body = json_object_new_string(upper_body);
+     json_object_object_add(json_person, "upper_body_color", json_upper_body);
+
+     if (alphabet) {
+       image label = get_label(alphabet, upper_body, (im.h*.01));
+       draw_label(im, upper_body_top + width, upper_body_left, label, rgb);
+       free_image(label);
+     }
+     if (dets[obj_idx].mask){
+       image mask = float_to_image(14, 14, 1, dets[i].mask);
+       image resized_mask = resize_image(mask, cur_box.w*im.w, cur_box.h*im.h);
+       image tmask = threshold_image(resized_mask, .5);
+       embed_image(tmask, im, upper_body_left, upper_body_top);
+       free_image(mask);
+       free_image(resized_mask);
+       free_image(tmask);
+     }
+
+     char bottom_body[64];
+     int bottom_body_left = left + (right - left) * 0.3;
+     int bottom_body_right = right - (right-left) * 0.3;
+     int bottom_body_top = waist + (ankle - waist) * 0.2;
+     int bottom_body_bot = ankle - (ankle - waist) * 0.4;
+     draw_box_width(im, bottom_body_left, bottom_body_top, bottom_body_right,
+                    bottom_body_bot, width, red, green, blue);
+     snprintf(bottom_body, sizeof(bottom_body), "%s",
+              color_name[get_most_color_index_weighted(im, bottom_body_left,
+              bottom_body_right, bottom_body_top, bottom_body_bot)]);
+
+     struct json_object *json_bottom_body = json_object_new_string(bottom_body);
+     json_object_object_add(json_person, "bottom_body_color", json_bottom_body);
+     if (alphabet) {
+       image label = get_label(alphabet, bottom_body, (im.h*.01));
+       draw_label(im, bottom_body_top + width, bottom_body_right, label, rgb);
+       free_image(label);
+     }
+     if (dets[obj_idx].mask){
+       image mask = float_to_image(14, 14, 1, dets[obj_idx].mask);
+       image resized_mask = resize_image(mask, cur_box.w*im.w, cur_box.h*im.h);
+       image tmask = threshold_image(resized_mask, .5);
+       embed_image(tmask, im, bottom_body_left, bottom_body_top);
+       free_image(mask);
+       free_image(resized_mask);
+       free_image(tmask);
+     }
+
+     if (min_dist > 5 * (right - left) || min_dist > 5 * (bot - top)) {
+       assigned_prev_index = -1;
+     }
+
+     if (assigned_prev_index < 0) {
+       for (int k = 0; k < PERSON_NUM; k++) {
+         if (person_cen_prev[k][0] < tiny && person_cen_prev[k][1] < tiny) {
+           person_cen_prev_index[k] = cur_person_index++;
+	         assigned_prev_index = k;
+	         break;
+         }
+       }
+     }
+
+     if (assigned_prev_index < 0) {
+       printf("Can not find an empty slot!\n");
+       continue;
+     }
+
+     // update the new center.
+     prev_cen_miss_cnt[assigned_prev_index] = 0;
+     person_cen_prev[assigned_prev_index][0] = person_cen_cur[cur_index][0];
+     person_cen_prev[assigned_prev_index][1] = person_cen_cur[cur_index][1];
+     prev_assigned[assigned_prev_index] = true;
+
+     char person_label[64];
+     snprintf(person_label, sizeof(person_label), "person_%d",
+	            person_cen_prev_index[assigned_prev_index]);
+
+     int color_index = person_cen_prev_index[assigned_prev_index] % color_cnt;
+     rgb[0] = color_person[color_index][0];
+     rgb[1] = color_person[color_index][1];
+     rgb[2] = color_person[color_index][2];
+
+     draw_box_width(im, left, top, right, bot, width, rgb[0], rgb[1], rgb[2]);
+     if (alphabet) {
+       image label = get_label(alphabet, person_label, (im.h*.02));
+       draw_label(im, top - width*10, left, label, rgb);
+       free_image(label);
+     }
+     if (dets[obj_idx].mask){
+       image mask = float_to_image(14, 14, 1, dets[obj_idx].mask);
+       image resized_mask = resize_image(mask, cur_box.w*im.w, cur_box.h*im.h);
+       image tmask = threshold_image(resized_mask, .5);
+       embed_image(tmask, im, left, top);
+       free_image(mask);
+       free_image(resized_mask);
+       free_image(tmask);
+     }
+   }
+
+   // Process prev center.
+   for(int i = 0; i < PERSON_NUM; i++) {
+     if (prev_assigned[i] == false) {
+       prev_cen_miss_cnt[i]++;
+     }
+     if (prev_cen_miss_cnt[i] > 10) {
+       person_cen_prev[i][0] = 0;
+       person_cen_prev[i][1] = 0;
+     }
+   }
 }
 //
 // void draw_detections(image im, detection *dets, int num, float thresh, char **names, image **alphabet, int classes, double time_index)
@@ -2064,6 +2056,6 @@ void show_images(image *ims, int n, char *window)
 void free_image(image m)
 {
     if(m.data){
-        free(m.data);
+      free(m.data);
     }
 }
