@@ -14,7 +14,7 @@
 #include "stb_image.h"
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
-#define COLOR_NUM 12
+#define COLOR_NUM 13
 #define PERSON_NUM 24
 
 int windows = 0;
@@ -256,13 +256,13 @@ float get_average_color(image im, int left, int right, int top, int bot, int c) 
 static char color_name[][64] = {"Black", "White", "Gray",
                                 "Red", "Dark Red", "Pink",
                                 "Blue", "Dark Blue", "Light Blue",
-                                "Yellow", "Orange",
-                                "Green"};
-static float color_rgb[][3] = {{0,0,0}, {255,255,255}, {64,64,64},
+                                "Yellow", "Orange", "Light Green", 
+                                "Dark Green"};
+static float color_rgb[][3] = {{0,0,0}, {255,255,255}, {120,120,120},
                                {255,0,0}, {139,0,0},{255,153,204},
-                               {0,0,255}, {50,40,102},{120,150,160},
-                               {255,255,0}, {255,102,0},
-                               {0,128,0}};
+                               {0,0,255}, {50,40,102},{102,150,200},
+                               {255,255,0}, {255,102,0}, {150,250,80}, 
+                               {26,78,50}};
 
 int get_color_index(float r, float g, float b) {
   float dist = -1;
@@ -303,9 +303,19 @@ int get_most_color_index(image im, int left, int right, int top, int bot,
 
   for(int i = left; i < right; ++i){
       for(int j = top; j < bot; ++j){
-          float r = 255.0 * get_pixel(im, i , j, 0); // red
-          float g = 255.0 * get_pixel(im, i , j, 1); // green
-          float b = 255.0 * get_pixel(im, i , j, 2); // blue
+
+          float rp = get_pixel(im, i , j, 0);
+          float gp = get_pixel(im, i , j, 1);
+          float bp = get_pixel(im, i , j, 2);
+
+          // fliter over exposed pixels
+          if ( floor(rp) == 1 || floor(gp) == 1 || floor(bp) == 1) {
+              continue;
+          }
+          float r = 255 * rp; // red
+          float g = 255 * gp; // green
+          float b = 255 * bp; // blue
+        // printf("r = %f, g = %f, b = %f \n ", r,g,b);
 
           float dist = -1;
           for (int k = 0; k < COLOR_NUM; k++) {
@@ -367,6 +377,14 @@ void swap(int *xp, int *yp)
 void draw_detections(image im, detection *dets, int num, float thresh,
   char **names, image **alphabet, int classes, double time_index)
 {
+    
+   struct json_object *json_obj = json_object_new_object();
+   char file_name[64];
+   int time_stamp = floor(time_index);
+   snprintf(file_name, sizeof(file_name), "output-%d.json", time_stamp);
+   FILE *file = fopen(file_name, "w+");
+   if(file == 0) file_error(file_name);
+
    int person_index = 0;
    int width = im.h * .006;
 
@@ -426,10 +444,10 @@ void draw_detections(image im, detection *dets, int num, float thresh,
 		                                              person_cen_prev[m][1]);
 
              }
-	         }
-           person_index++;
 	       }
-         printf("Detecting person %d\n", person_index);
+           person_index++;
+	     }
+         // printf("Detecting person %d\n", person_index);
        }
      }
    }
@@ -501,12 +519,6 @@ void draw_detections(image im, detection *dets, int num, float thresh,
      int waist = top + (bot - top)/2;
      int ankle = top + (bot - top)/10*9;
 
-     char head[64];
-     int head_left = left + (right - left) * 0.3;
-     int head_right = right - (right-left) * 0.3;
-     int head_top = top + (neck - top) * 0.2;
-     int head_bot = neck - (neck - top) * 0.2;
-
      int offset = 123457 % classes;
      float red = get_color(2, offset, classes);
      float green = get_color(1,offset,classes);
@@ -518,6 +530,11 @@ void draw_detections(image im, detection *dets, int num, float thresh,
      rgb[2] = blue;
 
      // printf("Detecting person %d head\n", person_index);
+     char head[64];
+     int head_left = left + (right - left) * 0.3;
+     int head_right = right - (right-left) * 0.3;
+     int head_top = top + (neck - top) * 0.2;
+     int head_bot = neck - (neck - top) * 0.2;
      draw_box_width(im, head_left, head_top, head_right, head_bot, width, red,
                     green, blue);
      snprintf(head, sizeof(head), "%s",
@@ -542,6 +559,7 @@ void draw_detections(image im, detection *dets, int num, float thresh,
        free_image(tmask);
      }
 
+    // printf("Detecting person %d Upper\n", person_index);
      char upper_body[64];
      int upper_body_left = left + (right - left) * 0.3;
      int upper_body_right = right - (right-left) * 0.3;
@@ -572,6 +590,7 @@ void draw_detections(image im, detection *dets, int num, float thresh,
        free_image(tmask);
      }
 
+    //  printf("Detecting person %d Bottom\n", person_index);
      char bottom_body[64];
      int bottom_body_left = left + (right - left) * 0.3;
      int bottom_body_right = right - (right-left) * 0.3;
@@ -634,6 +653,10 @@ void draw_detections(image im, detection *dets, int num, float thresh,
      rgb[1] = color_person[color_index][1];
      rgb[2] = color_person[color_index][2];
 
+     char person_object[64];
+     sprintf(person_object, "person %d", i+1);
+     json_object_object_add(json_obj, person_object, json_person);
+
      draw_box_width(im, left, top, right, bot, width, rgb[0], rgb[1], rgb[2]);
      if (alphabet) {
        image label = get_label(alphabet, person_label, (im.h*.02));
@@ -661,6 +684,10 @@ void draw_detections(image im, detection *dets, int num, float thresh,
        person_cen_prev[i][1] = 0;
      }
    }
+    // output json file
+    fprintf(file, "%s", json_object_to_json_string_ext(json_obj, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY));
+    printf(json_object_to_json_string_ext(json_obj, JSON_C_TO_STRING_SPACED | JSON_C_TO_STRING_PRETTY));
+    fclose(file);
 }
 //
 // void draw_detections(image im, detection *dets, int num, float thresh, char **names, image **alphabet, int classes, double time_index)
