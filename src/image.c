@@ -137,9 +137,9 @@ image tile_images(image a, image b, int dx) {
 }
 
 image get_label(image ** characters, char * string, int size) {
-  size = size / 10;
-  if (size > 7)
-    size = 7;
+  size = size / 40;
+  if (size > 1)
+    size = 1;
   image label = make_empty_image(0, 0, 0);
   while ( * string) {
     image l = characters[size][(int) * string];
@@ -148,7 +148,7 @@ image get_label(image ** characters, char * string, int size) {
     label = n;
     ++string;
   }
-  image b = border_image(label, label.h * .25);
+  image b = border_image(label, label.h * .05);
   free_image(label);
   return b;
 }
@@ -259,34 +259,28 @@ float get_average_color(image im, int left, int right, int top, int bot, int c) 
 
 // consolidated color table
 static char color_name[][64] = {
-  "Black", "Black", "Black", "Black",
-  "gray",
+  "Black", "Black", "Black", "Black","gray",
   "Red", "Red", "Red", "Red", "Red",
   "Brown", "Brown", "Brown",
   "Orange", "Orange",
   "Yellow", "Yellow", "Yellow", "Yellow", "Yellow",
-  "Green", "Green", "Green", "Green", "Green", "Green", "Green", "Green",
-  "Green",
-  "Blue", "Blue", "Blue", "Blue", "Blue", "Blue", "Blue", "Blue", "Blue",
-  "Blue", "Blue", "Blue",
+  "Green", "Green", "Green", "Green", "Green", "Green", "Green", "Green","Green",
+  "Blue", "Blue", "Blue", "Blue", "Blue", "Blue", "Blue", "Blue", "Blue", "Blue", "Blue", "Blue",
   "Purple", "Purple", "Purple", "Purple", "Purple",
-  "White", "White", "White",
-  "gray", "gray"
+  "White", "White", "White","gray", "gray"
 };
 
 static float color_rgb[][3] = {
-  {0, 0, 0}, {51, 0, 25}, {32, 32, 32}, {64, 64, 64}, {96, 96, 96}, {102, 0, 0},
-  {153, 0, 0}, {204, 0, 0}, {255, 0, 0}, {255, 51, 51}, {51, 25, 0},
-  {102, 51, 0}, {153, 76, 0}, {204, 102, 0}, {255, 128, 0}, {153, 153, 0},
-  {204, 204, 0}, {255, 255, 0}, {255, 255, 51}, {255, 255, 102}, {0, 102, 0},
-  {0, 153, 0}, {0, 204, 0}, {0, 255, 0}, {51, 255, 51}, {0, 51, 25},
-  {0, 102, 51}, {0, 153, 76}, {28, 72, 68}, // 9 in green series
-  {0, 0, 102}, {0, 0, 153}, {0, 0, 204}, {0, 0, 255}, {51, 255, 255},
-  {0, 25, 51}, {0, 51, 102}, {0, 76, 153}, {0, 102, 204}, {0, 128.255},
-  {50, 40, 102}, {102, 150, 200}, // 12 in Blue series
-  {51, 0, 102}, {76, 0, 153}, {102, 0, 204}, {127, 0, 255}, {153, 51, 255},
-  {255, 255, 255}, {224, 224, 224}, {192, 192, 192}, {160, 160, 160},
-  {128, 128, 128}
+  {0, 0, 0}, {51, 0, 25}, {32, 32, 32}, {64, 64, 64}, {96, 96, 96},  // 5 in Black & gray
+  {102, 0, 0}, {153, 0, 0}, {204, 0, 0}, {255, 0, 0}, {255, 51, 51}, // 5 in Red
+  {51, 25, 0}, {102, 51, 0}, {153, 76, 0}, // 3 in Brown
+  {204, 102, 0}, {255, 128, 0}, // 2 in Orange
+  {153, 153, 0},{204, 204, 0}, {255, 255, 0}, {255, 255, 51}, {255, 255, 102}, //  5 in yellow
+  {0, 102, 0},{0, 153, 0}, {0, 204, 0}, {0, 255, 0}, {51, 255, 51}, {0, 51, 25},{0, 102, 51}, {0, 153, 76}, {28, 72, 68}, // 9 in green 
+  {0, 0, 102}, {0, 0, 153}, {0, 0, 204}, {0, 0, 255}, {51, 255, 255}, {0, 25, 51}, 
+  {0, 51, 102}, {0, 76, 153}, {0, 102, 204}, {0, 128.255},{50, 40, 102}, {102, 150, 200}, // 12 in Blue series
+  {51, 0, 102}, {76, 0, 153}, {102, 0, 204}, {127, 0, 255}, {153, 51, 255}, // 5 in Purple
+  {255, 255, 255}, {224, 224, 224}, {192, 192, 192}, {160, 160, 160}, {128, 128, 128} // 5 in  White & gray
 };
 
 float color_dist_euclid(float r1, float g1, float b1,
@@ -313,12 +307,23 @@ int get_most_color_index(image im, int left, int right, int top, int bot,
   };
   int pixel_color_index;
 
+  // calculating the mean pixel value in ROI
+  float sum_r = 0;
+  float sum_g = 0;
+  float sum_b = 0;
+  float mean_r = 0;
+  float mean_g = 0;
+  float mean_b = 0;
+  int count = 0;
+
   for (int i = left; i < right; ++i) {
     for (int j = top; j < bot; ++j) {
 
       float rp = get_pixel(im, i, j, 0);
       float gp = get_pixel(im, i, j, 1);
       float bp = get_pixel(im, i, j, 2);
+
+      // printf("rp = %f, gp = %f, bp = %f \n ", rp,gp,bp);
 
       // fliter over exposed pixels
       if (floor(rp) == 1 || floor(gp) == 1 || floor(bp) == 1) {
@@ -327,6 +332,11 @@ int get_most_color_index(image im, int left, int right, int top, int bot,
       float r = 255 * rp; // red
       float g = 255 * gp; // green
       float b = 255 * bp; // blue
+
+      sum_r += r;
+      sum_g += g;
+      sum_b += b;
+      count++;
 
       float dist = -1;
       for (int k = 0; k < COLOR_NUM; k++) {
@@ -340,6 +350,12 @@ int get_most_color_index(image im, int left, int right, int top, int bot,
       color_count[pixel_color_index]++;
     }
   }
+
+  // debugging use to print the mean RGB values at ROI 
+  mean_r = sum_r / count;
+  mean_g = sum_g / count;
+  mean_b = sum_b / count; 
+  // printf("mean_r = %f, mean_g = %f, mean_b = %f \n ", mean_r,mean_g,mean_b); 
 
   int color_max_count = 0;
   int color_max_index = 0;
@@ -421,11 +437,12 @@ void sort_point_by_dist(float cen_x, float cen_y, float point[][2],
 struct json_object * draw_person(image im, image ** alphabet, detection person) {
   box person_box = person.bbox;
 
-  int width = im.h * .006;
+// parameters for color detection square outline
+  int width = im.h * .003;
   float rgb[3];
-  rgb[0] = 0.8;
-  rgb[1] = 0.1;
-  rgb[2] = 0.1;
+  rgb[0] = 0.6;
+  rgb[1] = 0.2;
+  rgb[2] = 1;
 
   int left = (person_box.x - person_box.w / 2.) * im.w;
   int right = (person_box.x + person_box.w / 2.) * im.w;
@@ -442,20 +459,19 @@ struct json_object * draw_person(image im, image ** alphabet, detection person) 
   int head_top = top + (neck - top) * 0.2;
   int head_bot = neck - (neck - top) * 0.2;
 
-  draw_box_width(im, head_left, head_top, head_right, head_bot, width, rgb[0],
-    rgb[1], rgb[2]);
+  struct json_object * json_person = json_object_new_object();
+
   char head[64];
   snprintf(head, sizeof(head), "%s",
     color_name[get_most_color_index_weighted(im, head_left,
       head_right, head_top,
       head_bot)]);
-
-  struct json_object * json_person = json_object_new_object();
+  draw_box_width(im, head_left, head_top, head_right, head_bot, width, rgb[0], rgb[1], rgb[2]);
   struct json_object * json_head = json_object_new_string(head);
   json_object_object_add(json_person, "head_color", json_head);
 
   if (alphabet) {
-    image label = get_label(alphabet, head, (im.h * .01));
+    image label = get_label(alphabet, head, (im.h * .003));
     draw_label(im, head_top + width, head_left, label, rgb);
     free_image(label);
   }
@@ -477,19 +493,18 @@ struct json_object * draw_person(image im, image ** alphabet, detection person) 
   int upper_body_top = neck + (waist - neck) * 0.3;
   int upper_body_bot = waist - (waist - neck) * 0.2;
 
-  draw_box_width(im, upper_body_left, upper_body_top, upper_body_right,
-    upper_body_bot, width, rgb[0], rgb[1], rgb[2]);
   snprintf(upper_body, sizeof(upper_body), "%s",
     color_name[get_most_color_index_weighted(im, upper_body_left,
       upper_body_right,
       upper_body_top,
       upper_body_bot)]);
+  draw_box_width(im, upper_body_left, upper_body_top, upper_body_right, upper_body_bot, width, rgb[0], rgb[1], rgb[2]);
 
   struct json_object * json_upper_body = json_object_new_string(upper_body);
   json_object_object_add(json_person, "upper_body_color", json_upper_body);
 
   if (alphabet) {
-    image label = get_label(alphabet, upper_body, (im.h * .01));
+    image label = get_label(alphabet, upper_body, (im.h * .003));
     draw_label(im, upper_body_top + width, upper_body_left, label, rgb);
     free_image(label);
   }
@@ -510,18 +525,18 @@ struct json_object * draw_person(image im, image ** alphabet, detection person) 
   int bottom_body_right = right - (right - left) * 0.3;
   int bottom_body_top = waist + (ankle - waist) * 0.2;
   int bottom_body_bot = ankle - (ankle - waist) * 0.4;
-  draw_box_width(im, bottom_body_left, bottom_body_top, bottom_body_right,
-    bottom_body_bot, width, rgb[0], rgb[1], rgb[2]);
   snprintf(bottom_body, sizeof(bottom_body), "%s",
     color_name[get_most_color_index_weighted(im, bottom_body_left,
       bottom_body_right,
       bottom_body_top,
       bottom_body_bot)]);
+  draw_box_width(im, bottom_body_left, bottom_body_top, bottom_body_right,
+    bottom_body_bot, width, rgb[0], rgb[1], rgb[2]);
 
   struct json_object * json_bottom_body = json_object_new_string(bottom_body);
   json_object_object_add(json_person, "bottom_body_color", json_bottom_body);
   if (alphabet) {
-    image label = get_label(alphabet, bottom_body, (im.h * .01));
+    image label = get_label(alphabet, bottom_body, (im.h * .003));
     draw_label(im, bottom_body_top + width, bottom_body_left, label,
       rgb);
     free_image(label);
@@ -676,8 +691,10 @@ void draw_detections(image im, detection * dets, int num, float thresh,
     // cur_index is the index of current center.
     int cur_index = sort_array[i];
     int obj_idx = obj_index[cur_index];
-    struct json_object * json_person =
-      draw_person(im, alphabet, dets[obj_idx]);
+    
+    // if (i == 0) { // testing on a single person of interest
+      struct json_object * json_person = draw_person(im, alphabet, dets[obj_idx]);
+    // } // testing on single person of interest 
 
     box person_box = dets[obj_idx].bbox;
     int left = (person_box.x - person_box.w / 2.) * im.w;
@@ -722,7 +739,7 @@ void draw_detections(image im, detection * dets, int num, float thresh,
     draw_box_width(im, left, top - width * 10, right, bot, width,
       rgb[0], rgb[1], rgb[2]);
     if (alphabet) {
-      image label = get_label(alphabet, person_label, (im.h * .02));
+      image label = get_label(alphabet, person_label, (im.h * .01));
       draw_label(im, top - width * 10, left, label, rgb);
       free_image(label);
     }
