@@ -16,7 +16,7 @@
 # define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
-# define COLOR_NUM 51
+# define COLOR_NUM 62
 # define PERSON_NUM 24
 
 int windows = 0;
@@ -260,26 +260,26 @@ float get_average_color(image im, int left, int right, int top, int bot, int c) 
 // consolidated color table
 static char color_name[][64] = {
   "Black", "Black", "Black", "Black","gray",
-  "Red", "Red", "Red", "Red", "Red",
+  "Red", "Red", "Red", "Red", "Red","Red",
   "Brown", "Brown", "Brown",
-  "Orange", "Orange",
-  "Yellow", "Yellow", "Yellow", "Yellow", "Yellow",
-  "Green", "Green", "Green", "Green", "Green", "Green", "Green", "Green","Green",
+  "Orange", "Orange","Orange","Orange",
+  "Yellow", "Yellow", "Yellow", "Yellow", "Yellow", "Yellow",
+  "Green", "Green", "Green", "Green", "Green", "Green", "Green", "Green","Green","Green", "Green",
   "Blue", "Blue", "Blue", "Blue", "Blue", "Blue", "Blue", "Blue", "Blue", "Blue", "Blue", "Blue",
-  "Purple", "Purple", "Purple", "Purple", "Purple",
+  "Purple", "Purple", "Purple", "Purple", "Purple","Purple", "Purple","Purple","Purple", "Purple",
   "White", "White", "White","gray", "gray"
 };
 
 static float color_rgb[][3] = {
   {0, 0, 0}, {51, 0, 25}, {32, 32, 32}, {64, 64, 64}, {96, 96, 96},  // 5 in Black & gray
-  {102, 0, 0}, {153, 0, 0}, {204, 0, 0}, {255, 0, 0}, {255, 51, 51}, // 5 in Red
+  {102, 0, 0}, {153, 0, 0}, {204, 0, 0}, {255, 0, 0}, {255, 51, 51}, {125,35,35}, // 6 in Red
   {51, 25, 0}, {102, 51, 0}, {153, 76, 0}, // 3 in Brown
-  {204, 102, 0}, {255, 128, 0}, // 2 in Orange
-  {153, 153, 0},{204, 204, 0}, {255, 255, 0}, {255, 255, 51}, {255, 255, 102}, //  5 in yellow
-  {0, 102, 0},{0, 153, 0}, {0, 204, 0}, {0, 255, 0}, {51, 255, 51}, {0, 51, 25},{0, 102, 51}, {0, 153, 76}, {28, 72, 68}, // 9 in green 
+  {204, 102, 0}, {255, 128, 0}, {255,153,51}, {230,60,10},// 4 in Orange
+  {153, 153, 0},{204, 204, 0}, {255, 255, 0}, {255, 255, 51}, {255, 255, 102}, {200,200,90},//  6 in yellow
+  {0, 102, 0},{0, 153, 0}, {0, 204, 0}, {0, 255, 0}, {51, 255, 51}, {0, 51, 25},{0, 102, 51}, {0, 153, 76}, {28, 72, 68}, {60,90,50}, {90,202,162}, // 11 in green 
   {0, 0, 102}, {0, 0, 153}, {0, 0, 204}, {0, 0, 255}, {51, 255, 255}, {0, 25, 51}, 
   {0, 51, 102}, {0, 76, 153}, {0, 102, 204}, {0, 128.255},{50, 40, 102}, {102, 150, 200}, // 12 in Blue series
-  {51, 0, 102}, {76, 0, 153}, {102, 0, 204}, {127, 0, 255}, {153, 51, 255}, // 5 in Purple
+  {51, 0, 102}, {76, 0, 153}, {102, 0, 204}, {127, 0, 255}, {153, 51, 255}, {178,102,255}, {204,153,255},{120,60,120},{66,28,75}, {189,137,183},// 10 in Purple
   {255, 255, 255}, {224, 224, 224}, {192, 192, 192}, {160, 160, 160}, {128, 128, 128} // 5 in  White & gray
 };
 
@@ -434,19 +434,6 @@ void sort_point_by_dist(float cen_x, float cen_y, float point[][2],
   }
 }
 
-void sort_point_by_dist_to_nearest_prev(float dist[], int* arr, int n) {
-  for (int i = 0; i < n - 1; i++) {
-    // Last i elements are already in place
-    for (int j = 0; j < n - 1 - i; j++) {
-      float a = dist[arr[j]];
-      float b = dist[arr[j + 1]];
-      if (a < 0 || (a > b && b >= 0)) {
-        swap(&arr[j], &arr[j + 1]);
-      }
-    }
-  }
-}
-
 struct json_object * draw_person(image im, image ** alphabet, detection person) {
   box person_box = person.bbox;
 
@@ -567,7 +554,7 @@ struct json_object * draw_person(image im, image ** alphabet, detection person) 
   return json_person;
 }
 
-int find_prev_center(float x, float y, float max_mov, bool* prev_assigned) {
+int find_prev_center(float x, float y, float max_mov, bool * prev_assigned) {
   int assigned_prev_index = -1;
   float min_dist = -1.0;
 
@@ -689,37 +676,13 @@ void draw_detections(image im, detection * dets, int num, float thresh,
 
   // sort current centers based on distance of current center to the image
   // center.
-  float dist[PERSON_NUM] = {0.0};
-  for(int i = 0; i < PERSON_NUM; i++) {
-    dist[i] = 10000000;
-  }
-  for(int i = 0; i < PERSON_NUM; i++) {
-    float d = -1.0;
-    for(int j = 0; j < PERSON_NUM; j++) {
-      if (person_cen_prev[j][0] < tiny && person_cen_prev[j][1] < tiny)
-        continue;
-      if (person_cen_cur[i][0] < tiny && person_cen_cur[i][1] < tiny)
-	continue;
-      float prev_dist = point_dist(person_cen_cur[i][0], person_cen_cur[i][1],
-                             	   person_cen_prev[j][0], person_cen_prev[j][1]);
-      if (d < 0 || prev_dist < d) {
-        d = prev_dist;
-      }
-    }
-    
-    if(d > 0) {
-      dist[i] = d;
-    }
-  }
   float center_x = im.w / 2.0;
   float center_y = im.h / 2.0;
-
   int sort_array[PERSON_NUM];
   for (int i = 0; i < PERSON_NUM; i++) {
     sort_array[i] = i;
   }
-  //sort_point_by_dist(center_x, center_y, person_cen_cur, sort_array);
-  //sort_point_by_dist_to_nearest_prev(dist, sort_array, PERSON_NUM);
+  sort_point_by_dist(center_x, center_y, person_cen_cur, sort_array);
 
   // process person
   // Iterate cur center from center to corner.
@@ -773,14 +736,8 @@ void draw_detections(image im, detection * dets, int num, float thresh,
     rgb[1] = color_person[color_index][1] / 256.0;
     rgb[2] = color_person[color_index][2] / 256.0;
 
-    draw_box_width(im, left, top - width * 5, right, bot, width,
+    draw_box_width(im, left, top - width * 10, right, bot, width,
       rgb[0], rgb[1], rgb[2]);
-    // For debug
-    float prev_cen_x = person_cen_prev[assigned_prev_index][0];
-    float prev_cen_y = person_cen_prev[assigned_prev_index][1];
-    draw_box_width(im, prev_cen_x - width * 10, prev_cen_y - width * 10,
-		    prev_cen_x + width *10, prev_cen_y + width*10, width,
-		    rgb[0], rgb[1], rgb[2]);
     if (alphabet) {
       image label = get_label(alphabet, person_label, (im.h * .01));
       draw_label(im, top - width * 10, left, label, rgb);
@@ -804,7 +761,7 @@ void draw_detections(image im, detection * dets, int num, float thresh,
       prev_cen_miss_cnt[i]++;
     }
     // Clear the previous center if miss count exceed threshold.
-    if (prev_cen_miss_cnt[i] > 3) {
+    if (prev_cen_miss_cnt[i] > 5) {
       person_cen_prev_index[i] = -1;
       person_cen_prev[i][0] = 0;
       person_cen_prev[i][1] = 0;
