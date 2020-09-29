@@ -207,6 +207,12 @@ void draw_line(image a, int x1, int y1, int x2, int y2, float r, float g, float 
   }
 }
 
+void draw_line_width(image a, int x1, int y1, int x2, int y2, int w, float r, float g, float b) {
+  for (int i = 0; i < w; ++i) {
+    draw_line(a, x1 + i, y1 + i, x2 + i, y2 + i, r, g, b);
+  }
+}
+
 void draw_box(image a, int x1, int y1, int x2, int y2, float r, float g, float b) {
   int i;
   if (x1 < 0)
@@ -752,8 +758,8 @@ void draw_detections(image im, detection * dets, int num, float thresh,
       continue;
     }
 
-    draw_line(im, person_cen_prev[assigned_prev_index][0], person_cen_prev[assigned_prev_index][1],
-              person_cen_cur[i][0], person_cen_cur[i][1], 255, 255, 255);
+    draw_line_width(im, person_cen_prev[assigned_prev_index][0], person_cen_prev[assigned_prev_index][1],
+              person_cen_cur[i][0], person_cen_cur[i][1], width, 0.5, 0.5, 0.5);
 
     // Add speed for person.
     char speed_object[64];
