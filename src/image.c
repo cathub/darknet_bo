@@ -191,7 +191,7 @@ void draw_line(image a, int x1, int y1, int x2, int y2, float r, float g, float 
     y2 = a.h - 1;
   
   if (x1 == x2) {
-    for(int i = y1; y <= y2; ++i) {
+    for(int i = y1; i <= y2; ++i) {
       a.data[x1 + i * a.w + 0 * a.w * a.h] = r;
       a.data[x1 + i * a.w + 1 * a.w * a.h] = g;
       a.data[x1 + i * a.w + 2 * a.w * a.h] = b;
@@ -759,7 +759,7 @@ void draw_detections(image im, detection * dets, int num, float thresh,
     }
 
     draw_line_width(im, person_cen_prev[assigned_prev_index][0], person_cen_prev[assigned_prev_index][1],
-              person_cen_cur[i][0], person_cen_cur[i][1], width, 0.5, 0.5, 0.5);
+              person_cen_cur[i][0], person_cen_cur[i][1], width, 128, 128, 128);
 
     // Add speed for person.
     char speed_object[64];
