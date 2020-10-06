@@ -759,7 +759,7 @@ void draw_detections(image im, detection * dets, int num, float thresh,
     }
 
     draw_line_width(im, person_cen_prev[assigned_prev_index][0], person_cen_prev[assigned_prev_index][1],
-              person_cen_cur[i][0], person_cen_cur[i][1], width, 128, 128, 128);
+              person_cen_cur[i][0], person_cen_cur[i][1], 100, 1, 0, 0);
 
     // Add speed for person.
     char speed_object[64];
