@@ -209,7 +209,7 @@ void draw_line(image a, int x1, int y1, int x2, int y2, float r, float g, float 
 
 void draw_line_width(image a, int x1, int y1, int x2, int y2, int w, float r, float g, float b) {
   for (int i = 0; i < w; ++i) {
-    draw_line(a, x1 + i, y1 + i, x2 + i, y2 + i, r, g, b);
+    draw_line(a, x1, y1 + i, x2, y2 + i, r, g, b);
   }
 }
 
@@ -787,7 +787,7 @@ void draw_detections(image im, detection * dets, int num, float thresh,
       rgb[0], rgb[1], rgb[2]);
 
     draw_line_width(im, person_cen_cur[i][0]-100, person_cen_cur[i][1],
-              person_cen_cur[i][0], person_cen_cur[i][1], 200, rgb[0], rgb[1], rgb[2]);
+              person_cen_cur[i][0], person_cen_cur[i][1], 10, rgb[0], rgb[1], rgb[2]);
               
     if (alphabet) {
       image label = get_label(alphabet, person_label, (im.h * .01));
