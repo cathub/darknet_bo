@@ -758,9 +758,6 @@ void draw_detections(image im, detection * dets, int num, float thresh,
       continue;
     }
 
-    draw_line_width(im, person_cen_prev[assigned_prev_index][0], person_cen_prev[assigned_prev_index][1],
-              person_cen_cur[i][0], person_cen_cur[i][1], 100, 1, 0, 0);
-
     // Add speed for person.
     char speed_object[64];
     sprintf(speed_object, "%f",
@@ -783,6 +780,10 @@ void draw_detections(image im, detection * dets, int num, float thresh,
 
     draw_box_width(im, left, top - width * 10, right, bot, width,
       rgb[0], rgb[1], rgb[2]);
+
+    draw_line_width(im, person_cen_prev[assigned_prev_index][0], person_cen_prev[assigned_prev_index][1],
+              person_cen_cur[i][0], person_cen_cur[i][1], 200, rgb[0], rgb[1], rgb[2]);
+              
     if (alphabet) {
       image label = get_label(alphabet, person_label, (im.h * .01));
       draw_label(im, top - width * 10, left, label, rgb);
