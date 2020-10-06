@@ -786,8 +786,8 @@ void draw_detections(image im, detection * dets, int num, float thresh,
     draw_box_width(im, left, top - width * 10, right, bot, width,
       rgb[0], rgb[1], rgb[2]);
 
-    draw_line_width(im, tmp_person_cen_prev[i][0], tmp_person_cen_prev[i][1],
-              person_cen_cur[i][0], person_cen_cur[i][1], 5, rgb[0], rgb[1], rgb[2]);
+    draw_line_width(im, tmp_person_cen_prev[assigned_prev_index][0], tmp_person_cen_prev[assigned_prev_index][1],
+              person_cen_cur[i][0], person_cen_cur[i][1], 10, rgb[0], rgb[1], rgb[2]);
               
     if (alphabet) {
       image label = get_label(alphabet, person_label, (im.h * .01));
