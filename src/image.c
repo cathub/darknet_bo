@@ -728,6 +728,11 @@ void draw_detections(image im, detection * dets, int num, float thresh,
 
   // process person
   // Iterate cur center from center to corner.
+  float tmp_person_cen_prev[PERSON_NUM][2] = {{0, 0}};
+  for (int i = 0; i < PERSON_NUM; i++) {
+    tmp_person_cen_prev[i][0] = person_cen_prev[i][0];
+    tmp_person_cen_prev[i][1] = person_cen_prev[i][1];
+  }
   bool prev_assigned[PERSON_NUM] = {false};
   for (int i = 0; i < person_index; i++) {
     // cur_index is the index of current center.
@@ -781,7 +786,7 @@ void draw_detections(image im, detection * dets, int num, float thresh,
     draw_box_width(im, left, top - width * 10, right, bot, width,
       rgb[0], rgb[1], rgb[2]);
 
-    draw_line_width(im, person_cen_prev[assigned_prev_index][0], person_cen_prev[assigned_prev_index][1],
+    draw_line_width(im, tmp_person_cen_prev[assigned_prev_index][0], tmp_person_cen_prev[assigned_prev_index][1],
               person_cen_cur[i][0], person_cen_cur[i][1], 200, rgb[0], rgb[1], rgb[2]);
               
     if (alphabet) {
