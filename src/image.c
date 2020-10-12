@@ -171,48 +171,6 @@ void draw_label(image a, int r, int c, image label,
   }
 }
 
-void draw_line(image a, int x1, int y1, int x2, int y2, float r, float g, float b) {
-  if (x1 < 0)
-    x1 = 0;
-  if (x1 >= a.w)
-    x1 = a.w - 1;
-  if (x2 < 0)
-    x2 = 0;
-  if (x2 >= a.w)
-    x2 = a.w - 1;
-
-  if (y1 < 0)
-    y1 = 0;
-  if (y1 >= a.h)
-    y1 = a.h - 1;
-  if (y2 < 0)
-    y2 = 0;
-  if (y2 >= a.h)
-    y2 = a.h - 1;
-  
-  if (x1 == x2) {
-    for(int i = y1; i <= y2; ++i) {
-      a.data[x1 + i * a.w + 0 * a.w * a.h] = r;
-      a.data[x1 + i * a.w + 1 * a.w * a.h] = g;
-      a.data[x1 + i * a.w + 2 * a.w * a.h] = b;
-    }
-  } else {
-    float t = (float)(y2- y1)/(float)(x2-x1);
-    for (int i = x1; i <= x2; ++i) {
-      int j = (y1 + (i - x1) * t) * a.w;
-      a.data[i + j  + 0 * a.w * a.h] = r;
-      a.data[i + j  + 1 * a.w * a.h] = g;
-      a.data[i + j  + 2 * a.w * a.h] = b;
-    }
-  }
-}
-
-void draw_line_width(image a, int x1, int y1, int x2, int y2, int w, float r, float g, float b) {
-  for (int i = 0; i < w; ++i) {
-    draw_line(a, x1, y1 + i, x2, y2 + i, r, g, b);
-  }
-}
-
 void draw_box(image a, int x1, int y1, int x2, int y2, float r, float g, float b) {
   int i;
   if (x1 < 0)
@@ -425,11 +383,27 @@ int get_most_color_index_weighted(image im, int left, int right, int top,
     color_dist_weighted);
 }
 
+struct Points {
+  float p[2];
+  struct Points* next;
+};
+
 static float person_cen_prev[PERSON_NUM][2] = {{0, 0}};
 static int person_cen_prev_index[PERSON_NUM] = {0};
 static int prev_cen_miss_cnt[PERSON_NUM] = {0};
 static float prev_person_mov[PERSON_NUM][2] = {{0, 0}};
+static struct Points* person_cen_history[PERSON_NUM] = {NULL};
 static int cur_person_index = 1;
+
+void draw_box_chain(image im, struct Points* head, int w, float r, float g, float b) {
+   struct Points* cur =  head;
+   while(cur) {
+     float x = cur->p[0];
+     float y = cur->p[1];
+     draw_box_width(im, x-3, y-3, x+3, y+3, w, r, g, b);
+     cur = cur->next;
+   }
+}
 
 static float color_person[][3] = {
   {255, 255, 0},
@@ -641,6 +615,21 @@ int find_prev_center(float x, float y, float max_mov, bool * prev_assigned) {
     }
     person_cen_prev[assigned_prev_index][0] = x;
     person_cen_prev[assigned_prev_index][1] = y;
+
+    struct Points* newItem = malloc(sizeof(struct Points));
+    newItem->p[0] = x;
+    newItem->p[1] = y;
+    newItem->next = NULL;
+
+    if (person_cen_history[assigned_prev_index] == NULL) {
+      person_cen_history[assigned_prev_index] = newItem;
+    } else {
+      struct Points* tmp = person_cen_history[assigned_prev_index];
+      while(tmp->next) {
+        tmp = tmp->next;
+      }
+      tmp->next = newItem;
+    }
   }
   return assigned_prev_index;
 }
@@ -788,9 +777,10 @@ void draw_detections(image im, detection * dets, int num, float thresh,
 
     draw_box_width(im, person_cen_cur[i][0]-10,person_cen_cur[i][1]-10,person_cen_cur[i][0]+10,person_cen_cur[i][1]+10,width, rgb[0], rgb[1], rgb[2]);
 
-    draw_box_width(im, tmp_person_cen_prev[assigned_prev_index][0]-10, tmp_person_cen_prev[assigned_prev_index][1]-10,tmp_person_cen_prev[assigned_prev_index][0]+10, tmp_person_cen_prev[assigned_prev_index][1]+10, width, rgb[0], rgb[1], rgb[2]);
-   //  draw_line_width(im, tmp_person_cen_prev[assigned_prev_index][0],tmp_person_cen_prev[assigned_prev_index][1],person_cen_cur[i][0], person_cen_cur[i][1], 5, rgb[0], rgb[1], rgb[2]);
-              
+    //draw_box_width(im, tmp_person_cen_prev[assigned_prev_index][0]-10, tmp_person_cen_prev[assigned_prev_index][1]-10,tmp_person_cen_prev[assigned_prev_index][0]+10, tmp_person_cen_prev[assigned_prev_index][1]+10, width, rgb[0], rgb[1], rgb[2]);
+    //  draw_line_width(im, tmp_person_cen_prev[assigned_prev_index][0],tmp_person_cen_prev[assigned_prev_index][1],person_cen_cur[i][0], person_cen_cur[i][1], 5, rgb[0], rgb[1], rgb[2]);
+    draw_box_chain(im, person_cen_history[assigned_prev_index], width, rgb[0], rgb[1], rgb[2]);
+
     if (alphabet) {
       image label = get_label(alphabet, person_label, (im.h * .01));
       draw_label(im, top - width * 10, left, label, rgb);
