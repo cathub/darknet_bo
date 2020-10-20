@@ -402,7 +402,7 @@ int find_history_index(float x, float y) {
     while(tmp->next) {
       tmp = tmp->next;
     }
-    if(tmp->p[0] == x && tmp->p[1] ==y) {
+    if(abs(tmp->p[0] - x) < tiny && abs(tmp->p[1] - y) < tiny) {
       return i;
     }
   }
