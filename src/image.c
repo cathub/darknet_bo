@@ -627,6 +627,17 @@ int find_prev_center(float x, float y, float max_mov, bool * prev_assigned) {
       prev_person_mov[assigned_prev_index][1] =
         y - person_cen_prev[assigned_prev_index][1];
     }
+    int history_index = find_history_index(person_cen_prev[assigned_prev_index][0], person_cen_prev[assigned_prev_index][0]);
+    // If it does not exist in the history.
+    if (history_index < 0) {
+      for(int i = 0; i < PERSON_NUM; ++i) {
+        if (person_cen_history[i] == NULL) {
+          history_index = i;
+          break;
+        }
+      }
+    }
+
     person_cen_prev[assigned_prev_index][0] = x;
     person_cen_prev[assigned_prev_index][1] = y;
 
@@ -635,14 +646,16 @@ int find_prev_center(float x, float y, float max_mov, bool * prev_assigned) {
     newItem->p[1] = y;
     newItem->next = NULL;
 
-    if (person_cen_history[assigned_prev_index] == NULL) {
-      person_cen_history[assigned_prev_index] = newItem;
-    } else {
-      struct Points* tmp = person_cen_history[assigned_prev_index];
-      while(tmp->next) {
-        tmp = tmp->next;
+    if (history_index >= 0) {
+      if (person_cen_history[history_index] == NULL) {
+        person_cen_history[history_index] = newItem;
+      } else {
+        struct Points* tmp = person_cen_history[history_index];
+        while(tmp->next) {
+          tmp = tmp->next;
+        }
+        tmp->next = newItem;
       }
-      tmp->next = newItem;
     }
   }
   return assigned_prev_index;
@@ -791,7 +804,7 @@ void draw_detections(image im, detection * dets, int num, float thresh,
 
     draw_box_width(im, person_cen_cur[i][0]-10,person_cen_cur[i][1]-10,person_cen_cur[i][0]+10,person_cen_cur[i][1]+10,width, rgb[0], rgb[1], rgb[2]);
 
-    const int history_index = find_history_index(person_cen_prev_index[assigned_prev_index][0], person_cen_prev_index[assigned_prev_index][1]);
+    const int history_index = find_history_index(person_cen_cur[i][0], person_cen_cur[i][0]);
     if (history_index > 0) {
       draw_box_chain(im, person_cen_history[history_index], width, rgb[0], rgb[1], rgb[2]);
     }
