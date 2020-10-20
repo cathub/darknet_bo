@@ -395,6 +395,20 @@ static float prev_person_mov[PERSON_NUM][2] = {{0, 0}};
 static struct Points* person_cen_history[PERSON_NUM] = {NULL};
 static int cur_person_index = 1;
 
+int find_history_index(float x, float y) {
+  for(int i = 0; i < PERSON_NUM; ++i) {
+    struct Points* tmp = person_cen_history[i];
+    if (tmp == NULL) continue;
+    while(tmp->next) {
+      tmp = tmp->next;
+    }
+    if(tmp->p[0] == x && tmp->p[1] ==y) {
+      return i;
+    }
+  }
+  return -1;
+}
+
 void draw_box_chain(image im, struct Points* head, int w, float r, float g, float b) {
    struct Points* cur =  head;
    while(cur) {
@@ -777,9 +791,10 @@ void draw_detections(image im, detection * dets, int num, float thresh,
 
     draw_box_width(im, person_cen_cur[i][0]-10,person_cen_cur[i][1]-10,person_cen_cur[i][0]+10,person_cen_cur[i][1]+10,width, rgb[0], rgb[1], rgb[2]);
 
-    //draw_box_width(im, tmp_person_cen_prev[assigned_prev_index][0]-10, tmp_person_cen_prev[assigned_prev_index][1]-10,tmp_person_cen_prev[assigned_prev_index][0]+10, tmp_person_cen_prev[assigned_prev_index][1]+10, width, rgb[0], rgb[1], rgb[2]);
-    //  draw_line_width(im, tmp_person_cen_prev[assigned_prev_index][0],tmp_person_cen_prev[assigned_prev_index][1],person_cen_cur[i][0], person_cen_cur[i][1], 5, rgb[0], rgb[1], rgb[2]);
-    draw_box_chain(im, person_cen_history[assigned_prev_index], width, rgb[0], rgb[1], rgb[2]);
+    const int history_index = find_history_index(person_cen_prev_index[assigned_prev_index][0], person_cen_prev_index[assigned_prev_index][1]);
+    if (history_index > 0) {
+      draw_box_chain(im, person_cen_history[history_index], width, rgb[0], rgb[1], rgb[2]);
+    }
 
     if (alphabet) {
       image label = get_label(alphabet, person_label, (im.h * .01));
